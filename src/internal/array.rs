@@ -813,12 +813,12 @@ impl<const N: usize, const D: usize> ArrTensor<f32, N, D> {
             for i in 0..m {
                 let self_row_offset = self_batch_offset + i * self_strides[D - 2];
                 let out_row_offset = out_batch_offset + i * out_strides[D - 2];
-                let out_row = &mut out.data.as_mut_array()[out_row_offset..(out_row_offset + n)];
+                let out_row = &mut out.data[out_row_offset..(out_row_offset + n)];
 
                 for kk in 0..k {
                     let a = self.data[self_row_offset + kk];
                     let rhs_row_offset = rhs_batch_offset + kk * rhs_strides[D - 2];
-                    let rhs_row = &rhs.data.as_array()[rhs_row_offset..(rhs_row_offset + n)];
+                    let rhs_row = &rhs.data[rhs_row_offset..(rhs_row_offset + n)];
 
                     lazy_simd::simd::mul_add_scalar_slice(a, rhs_row, out_row);
                 }
@@ -908,7 +908,7 @@ impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
             for i in 0..m {
                 let self_row_offset = self_batch_offset + i * self_strides[D - 2];
                 let out_row_offset = out_batch_offset + i * out_strides[D - 2];
-                let out_row = &mut out.data.as_mut_array()[out_row_offset..(out_row_offset + n)];
+                let out_row = &mut out.data[out_row_offset..(out_row_offset + n)];
 
                 for kk in 0..k {
                     let a = self.data[self_row_offset + kk];

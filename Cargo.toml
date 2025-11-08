@@ -1,6 +1,6 @@
 [package]
 name = "tensor_optim"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.83.0"
 description = "A tiny tensor engine lacking compromise on portability"
@@ -25,7 +25,7 @@ codegen-units = 1
 alloc = []
 
 [dependencies]
-lazy_simd = "0.1.0"
+lazy_simd = "0.1.1"
 
 [dev-dependencies]
 proptest = "1.7.0"

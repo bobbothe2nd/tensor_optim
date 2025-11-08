@@ -52,9 +52,9 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tensor_optim = "0.1"
-# Enable dynamic tensors if your environment supports alloc:
-# tensor_optim = { version = "0.1", features = ["alloc"] }
+tensor_optim = "0.2.1"
+# or enable dynamic tensors:
+# tensor_optim = { version = "0.2.1", features = ["alloc"] }
 ```
 
 or just run this command: `cargo add tensor_optim`.
