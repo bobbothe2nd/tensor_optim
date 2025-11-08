@@ -9,7 +9,7 @@
 //! - `DynTensor`: A dynamically allocated tensor with far more flexibility than the others.
 //!     - Ownership: The entire tensor is owned by the `struct`.
 //!     - Allocation: This tensor dynamically allocates everything, shape is boxed and data is wrapped in `Arc`.
-//! 
+//!
 //! Note: The crate is fully documented, `no-std` compatible, and well tested.
 //! It doesn't even need `alloc` unless the `alloc` feature (off by default) is enabled.
 
@@ -26,11 +26,11 @@ extern crate alloc;
 
 mod internal;
 
-pub use internal::MAX_STATIC_RANK;
-pub use internal::TensorOps;
-pub use internal::ConstTensorOps;
 pub use internal::array::ArrTensor;
 pub use internal::views::RefTensor;
+pub use internal::ConstTensorOps;
+pub use internal::TensorOps;
+pub use internal::MAX_STATIC_RANK;
 
 #[cfg(feature = "alloc")]
 pub use internal::dynamic::DynTensor;

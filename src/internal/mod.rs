@@ -57,6 +57,7 @@ pub trait ConstTensorOps<T, const N: usize, const D: usize> {
     fn data_mut_array(&mut self) -> &mut [T; N];
 }
 
-/// A small limit to ranks mostly in `ArrTensor`.
-/// Primarily for matrix multiplication.
+/// A small limit to ranks.
+///
+/// Primarily for matrix multiplication in `ArrTensor`.
 pub const MAX_STATIC_RANK: usize = 12;

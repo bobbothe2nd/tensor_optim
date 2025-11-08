@@ -1,4 +1,7 @@
-use crate::internal::{ConstTensorOps, TensorOps};
+use lazy_simd::{MAX_SIMD_SINGLE_PRECISION_LANES, scalar::{AddByRef, DivByRef, MulByRef, Primitive, SubByRef}, simd::{
+    LaneCount, Simd, SimdElement, SupportedLaneCount, backend::AlignedSimd
+}};
+use crate::internal::{ConstTensorOps, TensorOps, };
 use core::ops::{Add, AddAssign, Div, DivAssign, Index, Mul, MulAssign, Sub, SubAssign};
 
 /// A tensor made up of statically sized arrays.
@@ -6,14 +9,24 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Index, Mul, MulAssign, Sub, SubA
 /// Often the best choice for embedded tensor operations because it doesn't use any OS-dependent features like heap allocators.
 /// If memory efficiency is the largest concern, the lack of dynamic heap allocation is a huge positive of `ArrTensor`.
 ///
-/// However, when flexibility is put before memory efficiency, this becomes obsolete; use `DynTensor` instead.
+/// However, when flexibility is put before memory efficiency and performance, this becomes obsolete; use `DynTensor` instead.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ArrTensor<T, const N: usize, const D: usize> {
+pub struct ArrTensor<T, const N: usize, const D: usize, const LANES: usize = MAX_SIMD_SINGLE_PRECISION_LANES>
+where 
+    T: SimdElement + Primitive,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
     shape: [usize; D],
-    data: [T; N],
+    data: Simd<T, N, LANES>, // vector instead of array
 }
 
-impl<T, const N: usize, const D: usize> ArrTensor<T, N, D> {
+impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
     /// Instantiates a new Tensor which owns its data without allocating it.
     ///
     /// # Panics
@@ -31,7 +44,7 @@ impl<T, const N: usize, const D: usize> ArrTensor<T, N, D> {
         );
         Self {
             shape,
-            data: [T::default(); N],
+            data: Simd::default(),
         }
     }
 
@@ -61,24 +74,30 @@ impl<T, const N: usize, const D: usize> ArrTensor<T, N, D> {
             N,
             "shape and data length mismatch"
         );
-        Self { shape, data }
+        Self {
+            shape,
+            data: Simd::new(data),
+        }
     }
 }
 
-impl<T, const N: usize, const D: usize> ArrTensor<T, N, D>
-where
-    T: Copy,
+impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
-    /// Map each element of `ArrTensor<T, N, D>` to `ArrTensor<U, N, D>` by applying `f` elementwise.
-    pub fn map<U, F>(&self, mut f: F) -> ArrTensor<U, N, D>
+    /// Map each element of `ArrTensor<T, N, D, LANES>` to `ArrTensor<U, N, D>` by applying `f` elementwise.
+    pub fn map<U, F>(&self, mut f: F) -> ArrTensor<U, N, D, LANES>
     where
         F: FnMut(T) -> U,
-        U: Copy,
+        U: SimdElement + Primitive,
+        [U; LANES]: AlignedSimd<[U; LANES], U, { LANES }>,
     {
         let new_data = core::array::from_fn(|i| f(self.data[i]));
         ArrTensor {
             shape: self.shape,
-            data: new_data,
+            data: Simd::new(new_data),
         }
     }
 
@@ -87,9 +106,12 @@ where
     /// # Panics
     ///
     /// Both tensors, `self` and `other`, must have the same shape or a panic will occur.
-    pub fn zip_map<U, V, F>(&self, other: &ArrTensor<U, N, D>, mut f: F) -> ArrTensor<V, N, D>
+    pub fn zip_map<U, V, F>(&self, other: &ArrTensor<U, N, D, LANES>, mut f: F) -> ArrTensor<V, N, D, LANES>
     where
-        U: Copy,
+        U: SimdElement + Primitive,
+        [U; LANES]: AlignedSimd<[U; LANES], U, { LANES }>,
+        V: SimdElement + Primitive,
+        [V; LANES]: AlignedSimd<[V; LANES], V, { LANES }>,
         F: FnMut(T, U) -> V,
     {
         assert_eq!(self.shape, other.shape, "shape mismatch in zip_map");
@@ -98,18 +120,23 @@ where
 
         ArrTensor {
             shape: self.shape,
-            data: new_data,
+            data: Simd::new(new_data),
         }
     }
 }
 
-impl<T, const N: usize, const D: usize> TensorOps<T> for ArrTensor<T, N, D> {
+impl<T, const N: usize, const D: usize, const LANES: usize> TensorOps<T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
     fn data(&self) -> &[T] {
-        &self.data
+        &*self.data
     }
 
     fn data_mut(&mut self) -> &mut [T] {
-        &mut self.data
+        &mut *self.data
     }
 
     fn shape(&self) -> &[usize] {
@@ -117,7 +144,12 @@ impl<T, const N: usize, const D: usize> TensorOps<T> for ArrTensor<T, N, D> {
     }
 }
 
-impl<T, const N: usize, const D: usize> ConstTensorOps<T, N, D> for ArrTensor<T, N, D> {
+impl<T, const N: usize, const D: usize, const LANES: usize> ConstTensorOps<T, N, D> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
     fn data_array(&self) -> &[T; N] {
         &self.data
     }
@@ -131,8 +163,14 @@ impl<T, const N: usize, const D: usize> ConstTensorOps<T, N, D> for ArrTensor<T,
     }
 }
 
-impl<T, const N: usize, const D: usize> Index<&[usize]> for ArrTensor<T, N, D> {
+impl<T, const N: usize, const D: usize, const LANES: usize> Index<&[usize]> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
     type Output = T;
+
     fn index(&self, idx: &[usize]) -> &Self::Output {
         let flat = self
             .index_offset(idx)
@@ -141,219 +179,419 @@ impl<T, const N: usize, const D: usize> Index<&[usize]> for ArrTensor<T, N, D> {
     }
 }
 
-impl<T, const N: usize, const D: usize> AddAssign<&Self> for ArrTensor<T, N, D>
-where
-    T: Copy + Add<Output = T>,
+impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn add_assign(&mut self, rhs: Self) {
+        assert_eq!(self.shape, rhs.shape, "shape mismatch");
+        self.data += rhs.data;
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<&Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
     fn add_assign(&mut self, rhs: &Self) {
         assert_eq!(self.shape, rhs.shape, "shape mismatch");
-        for (a, b) in self.data.iter_mut().zip(rhs.data.iter()) {
-            *a = *a + *b;
-        }
+        self.data = self.data.as_add(&rhs.data);
     }
 }
 
-impl<T, const N: usize, const D: usize> SubAssign<&Self> for ArrTensor<T, N, D>
-where
-    T: Copy + Sub<Output = T>,
+impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn add_assign(&mut self, rhs: T) {
+        self.data += rhs;
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<&T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn add_assign(&mut self, rhs: &T) {
+        self.data = self.data.as_add(rhs);
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn sub_assign(&mut self, rhs: Self) {
+        assert_eq!(self.shape, rhs.shape, "shape mismatch");
+        self.data -= rhs.data;
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<&Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
     fn sub_assign(&mut self, rhs: &Self) {
         assert_eq!(self.shape, rhs.shape, "shape mismatch");
-        for (a, b) in self.data.iter_mut().zip(rhs.data.iter()) {
-            *a = *a - *b;
-        }
+        self.data = self.data.as_sub(&rhs.data);
     }
 }
 
-impl<T, const N: usize, const D: usize> MulAssign<&Self> for ArrTensor<T, N, D>
-where
-    T: Copy + Mul<Output = T>,
+impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn sub_assign(&mut self, rhs: T) {
+        self.data -= rhs;
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<&T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn sub_assign(&mut self, rhs: &T) {
+        self.data = self.data.as_sub(rhs);
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn mul_assign(&mut self, rhs: T) {
+        self.data *= rhs;
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<&T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn mul_assign(&mut self, rhs: &T) {
+        self.data = self.data.as_mul(rhs);
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn mul_assign(&mut self, rhs: Self) {
+        assert_eq!(self.shape, rhs.shape, "shape mismatch");
+        self.data *= rhs.data;
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<&Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
     fn mul_assign(&mut self, rhs: &Self) {
         assert_eq!(self.shape, rhs.shape, "shape mismatch");
-        for (a, b) in self.data.iter_mut().zip(rhs.data.iter()) {
-            *a = *a * *b;
-        }
+        self.data = self.data.as_mul(&rhs.data);
     }
 }
 
-impl<T, const N: usize, const D: usize> DivAssign<&Self> for ArrTensor<T, N, D>
-where
-    T: Copy + Div<Output = T>,
+impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn div_assign(&mut self, rhs: T) {
+        self.data /= rhs;
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<&T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn div_assign(&mut self, rhs: &T) {
+        self.data = self.data.as_div(rhs);
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    fn div_assign(&mut self, rhs: Self) {
+        assert_eq!(self.shape, rhs.shape, "shape mismatch");
+        self.data /= rhs.data;
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<&Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
     fn div_assign(&mut self, rhs: &Self) {
         assert_eq!(self.shape, rhs.shape, "shape mismatch");
-        for (a, b) in self.data.iter_mut().zip(rhs.data.iter()) {
-            *a = *a / *b;
-        }
+        self.data = self.data.as_div(&rhs.data);
     }
 }
 
-impl<T, const N: usize, const D: usize> AddAssign<T> for ArrTensor<T, N, D>
-where
-    T: Copy + Add<Output = T>,
+impl<T, const N: usize, const D: usize, const LANES: usize> Add<&Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
-    fn add_assign(&mut self, rhs: T) {
-        for a in &mut self.data {
-            *a = *a + rhs;
-        }
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        assert_eq!(self.shape, rhs.shape, "shape mismatch in Add");
+        let data = self.data.as_add(&rhs.data);
+        Self::with_data(self.shape, *data)
     }
 }
 
-impl<T, const N: usize, const D: usize> SubAssign<T> for ArrTensor<T, N, D>
-where
-    T: Copy + Sub<Output = T>,
-{
-    fn sub_assign(&mut self, rhs: T) {
-        for a in &mut self.data {
-            *a = *a - rhs;
-        }
-    }
-}
-
-impl<T, const N: usize, const D: usize> MulAssign<T> for ArrTensor<T, N, D>
-where
-    T: Copy + Mul<Output = T>,
-{
-    fn mul_assign(&mut self, rhs: T) {
-        for a in &mut self.data {
-            *a = *a * rhs;
-        }
-    }
-}
-
-impl<T, const N: usize, const D: usize> DivAssign<T> for ArrTensor<T, N, D>
-where
-    T: Copy + Div<Output = T>,
-{
-    fn div_assign(&mut self, rhs: T) {
-        for a in &mut self.data {
-            *a = *a / rhs;
-        }
-    }
-}
-
-impl<T, const N: usize, const D: usize> Add for ArrTensor<T, N, D>
-where
-    T: Copy + Add<Output = T>,
+impl<T, const N: usize, const D: usize, const LANES: usize> Add<Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
         assert_eq!(self.shape, rhs.shape, "shape mismatch in Add");
-        let mut data = [self.data[0]; N];
-        for (i, item) in data.iter_mut().enumerate().take(N) {
-            *item = self.data[i] + rhs.data[i];
-        }
-        Self::with_data(self.shape, data)
+        let data = self.data + rhs.data;
+        Self::with_data(self.shape, *data)
     }
 }
 
-impl<T, const N: usize, const D: usize> Sub for ArrTensor<T, N, D>
-where
-    T: Copy + Sub<Output = T>,
+impl<T, const N: usize, const D: usize, const LANES: usize> Add<T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    type Output = Self;
+
+    fn add(self, rhs: T) -> Self {
+        let data = self.data + rhs;
+        Self::with_data(self.shape, *data)
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> Add<&T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    type Output = Self;
+
+    fn add(self, rhs: &T) -> Self {
+        let data = self.data.as_add(rhs);
+        Self::with_data(self.shape, *data)
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> Sub<&Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        assert_eq!(self.shape, rhs.shape, "shape mismatch in Sub");
+        let data = self.data.as_sub(&rhs.data);
+        Self::with_data(self.shape, *data)
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> Sub<Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
         assert_eq!(self.shape, rhs.shape, "shape mismatch in Sub");
-        let mut data = [self.data[0]; N];
-        for (i, item) in data.iter_mut().enumerate().take(N) {
-            *item = self.data[i] - rhs.data[i];
-        }
-        Self::with_data(self.shape, data)
+        let data = self.data - rhs.data;
+        Self::with_data(self.shape, *data)
     }
 }
 
-impl<T, const N: usize, const D: usize> Mul for ArrTensor<T, N, D>
-where
-    T: Copy + Mul<Output = T>,
+impl<T, const N: usize, const D: usize, const LANES: usize> Sub<T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    type Output = Self;
+
+    fn sub(self, rhs: T) -> Self {
+        let data = self.data - rhs;
+        Self::with_data(self.shape, *data)
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> Sub<&T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    type Output = Self;
+
+    fn sub(self, rhs: &T) -> Self {
+        let data = self.data.as_sub(rhs);
+        Self::with_data(self.shape, *data)
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> Mul<&Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    type Output = Self;
+
+    fn mul(self, rhs: &Self) -> Self {
+        assert_eq!(self.shape, rhs.shape, "shape mismatch in Mul");
+        let data = self.data.as_mul(&rhs.data);
+        Self::with_data(self.shape, *data)
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> Mul<Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self {
         assert_eq!(self.shape, rhs.shape, "shape mismatch in Mul");
-        let mut data = [self.data[0]; N];
-        for (i, item) in data.iter_mut().enumerate().take(N) {
-            *item = self.data[i] * rhs.data[i];
-        }
-        Self::with_data(self.shape, data)
+        let data = self.data * rhs.data;
+        Self::with_data(self.shape, *data)
     }
 }
 
-impl<T, const N: usize, const D: usize> Div for ArrTensor<T, N, D>
-where
-    T: Copy + Div<Output = T>,
+impl<T, const N: usize, const D: usize, const LANES: usize> Mul<T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    type Output = Self;
+
+    fn mul(self, rhs: T) -> Self {
+        let data = self.data * rhs;
+        Self::with_data(self.shape, *data)
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> Mul<&T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    type Output = Self;
+
+    fn mul(self, rhs: &T) -> Self {
+        let data = self.data.as_mul(rhs);
+        Self::with_data(self.shape, *data)
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> Div<&Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    type Output = Self;
+
+    fn div(self, rhs: &Self) -> Self {
+        assert_eq!(self.shape, rhs.shape, "shape mismatch in Div");
+        let data = self.data.as_div(&rhs.data);
+        Self::with_data(self.shape, *data)
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> Div<Self> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self {
         assert_eq!(self.shape, rhs.shape, "shape mismatch in Div");
-        let mut data = [self.data[0]; N];
-        for (i, item) in data.iter_mut().enumerate().take(N) {
-            *item = self.data[i] / rhs.data[i];
-        }
-        Self::with_data(self.shape, data)
+        let data = self.data / rhs.data;
+        Self::with_data(self.shape, *data)
     }
 }
 
-impl<T, const N: usize, const D: usize> Add<T> for ArrTensor<T, N, D>
-where
-    T: Copy + Add<Output = T>,
-{
-    type Output = Self;
-
-    fn add(self, rhs: T) -> Self {
-        let mut data = [self.data[0]; N];
-        for (i, item) in data.iter_mut().enumerate().take(N) {
-            *item = self.data[i] + rhs;
-        }
-        Self::with_data(self.shape, data)
-    }
-}
-
-impl<T, const N: usize, const D: usize> Sub<T> for ArrTensor<T, N, D>
-where
-    T: Copy + Sub<Output = T>,
-{
-    type Output = Self;
-
-    fn sub(self, rhs: T) -> Self {
-        let mut data = [self.data[0]; N];
-        for (i, item) in data.iter_mut().enumerate().take(N) {
-            *item = self.data[i] - rhs;
-        }
-        Self::with_data(self.shape, data)
-    }
-}
-
-impl<T, const N: usize, const D: usize> Mul<T> for ArrTensor<T, N, D>
-where
-    T: Copy + Mul<Output = T>,
-{
-    type Output = Self;
-
-    fn mul(self, rhs: T) -> Self {
-        let mut data = [self.data[0]; N];
-        for (i, item) in data.iter_mut().enumerate().take(N) {
-            *item = self.data[i] * rhs;
-        }
-        Self::with_data(self.shape, data)
-    }
-}
-
-impl<T, const N: usize, const D: usize> Div<T> for ArrTensor<T, N, D>
-where
-    T: Copy + Div<Output = T>,
+impl<T, const N: usize, const D: usize, const LANES: usize> Div<T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
     type Output = Self;
 
     fn div(self, rhs: T) -> Self {
-        let mut data = [self.data[0]; N];
-        for (i, item) in data.iter_mut().enumerate().take(N) {
-            *item = self.data[i] / rhs;
-        }
-        Self::with_data(self.shape, data)
+        let data = self.data / rhs;
+        Self::with_data(self.shape, *data)
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> Div<&T> for ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    type Output = Self;
+
+    fn div(self, rhs: &T) -> Self {
+        let data = self.data.as_div(rhs);
+        Self::with_data(self.shape, *data)
     }
 }
 
@@ -379,9 +617,11 @@ fn unravel_index_fixed(
     }
 }
 
-impl<T, const N: usize, const D: usize> ArrTensor<T, N, D>
-where
-    T: Copy + Add<Output = T> + Mul<Output = T> + AddAssign + Default,
+impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive + Default,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
     /// Batched matmul over arbitrary leading batch dims:
     /// Contracts last dim of `self` with second-last dim of `rhs`.
@@ -408,17 +648,34 @@ where
     /// Every one of those must be true.
     pub fn matmul<const M: usize, const O: usize>(
         &self,
-        rhs: &ArrTensor<T, M, D>,
-        out: &mut ArrTensor<T, O, D>,
+        rhs: &ArrTensor<T, M, D, LANES>,
+        out: &mut ArrTensor<T, O, D, LANES>,
     ) {
-        assert!(D >= 2 && D <= MAX_STATIC_RANK, "rank must be >=2 and <= MAX_STATIC_RANK");
+        const {
+            assert!(
+                D >= 2 && D <= MAX_STATIC_RANK,
+                "rank must be >=2 and <= MAX_STATIC_RANK"
+            );
+        }
 
         let m = self.shape[D - 2];
         let k = self.shape[D - 1];
         let n = rhs.shape[D - 1];
+        if n == 0 {
+            return;
+        }
+
         assert!(k == rhs.shape[D - 2], "inner dimensions must match");
-        assert!(self.shape[..D - 2] == rhs.shape[..D - 2], "batch dimensions must match");
-        assert!(self.shape[..D - 2] == out.shape[..D - 2], "batch dimensions must match output");
+        assert!(
+            self.shape[..D - 2] == rhs.shape[..D - 2],
+            "batch dimensions must match"
+        );
+        assert!(
+            self.shape[..D - 2] == out.shape[..D - 2],
+            "batch dimensions must match output"
+        );
+
+        out.data.fill(T::default());
 
         // compute strides once
         let mut self_strides = [0usize; MAX_STATIC_RANK];
@@ -428,13 +685,10 @@ where
         compute_strides_fixed(&rhs.shape, &mut rhs_strides, D);
         compute_strides_fixed(&out.shape, &mut out_strides, D);
 
-        // zero output
-        for v in &mut out.data {
-            *v = T::default();
-        }
-
         let batch_count = self.shape[..D - 2].iter().product::<usize>();
-        if batch_count == 0 { return; }
+        if batch_count == 0 {
+            return;
+        }
 
         let mut batch_multi_idx = [0usize; MAX_STATIC_RANK];
 
@@ -444,11 +698,20 @@ where
 
             // compute linear batch offsets
             let self_batch_offset: usize = batch_multi_idx[..D - 2]
-                .iter().zip(&self_strides[..D - 2]).map(|(&i, &s)| i * s).sum();
+                .iter()
+                .zip(&self_strides[..D - 2])
+                .map(|(&i, &s)| i * s)
+                .sum();
             let rhs_batch_offset: usize = batch_multi_idx[..D - 2]
-                .iter().zip(&rhs_strides[..D - 2]).map(|(&i, &s)| i * s).sum();
+                .iter()
+                .zip(&rhs_strides[..D - 2])
+                .map(|(&i, &s)| i * s)
+                .sum();
             let out_batch_offset: usize = batch_multi_idx[..D - 2]
-                .iter().zip(&out_strides[..D - 2]).map(|(&i, &s)| i * s).sum();
+                .iter()
+                .zip(&out_strides[..D - 2])
+                .map(|(&i, &s)| i * s)
+                .sum();
 
             // linear inner matmul over last two dimensions
             for i in 0..m {
@@ -469,9 +732,201 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize> ArrTensor<T, N, D>
-where
-    T: Copy,
+impl<const N: usize, const D: usize> ArrTensor<f32, N, D> {
+    /// SIMD-accelerated matrix multiplication like [`Self::matmul`].
+    ///
+    /// This is purely an enhanced version of regular matrix multiplication with the
+    /// addition of SIMD acceleration. Implementation and details should be found
+    /// consulting that documentation, not this function.
+    ///
+    /// # Panics
+    ///
+    /// Same preconditions as generic `matmul`.
+    pub fn simd_matmul<const M: usize, const O: usize>(
+        &self,
+        rhs: &ArrTensor<f32, M, D>,
+        out: &mut ArrTensor<f32, O, D>,
+    ) {
+        const {
+            assert!(
+                D >= 2 && D <= MAX_STATIC_RANK,
+                "rank must be >=2 and <= MAX_STATIC_RANK"
+            );
+        }
+
+        let m = self.shape[D - 2];
+        let k = self.shape[D - 1];
+        let n = rhs.shape[D - 1];
+        if n == 0 {
+            return;
+        }
+
+        assert!(k == rhs.shape[D - 2], "inner dimensions must match");
+        assert!(
+            self.shape[..D - 2] == rhs.shape[..D - 2],
+            "batch dimensions must match"
+        );
+        assert!(
+            self.shape[..D - 2] == out.shape[..D - 2],
+            "batch dimensions must match output"
+        );
+
+        out.data.fill(0.0);
+
+        // compute strides once
+        let mut self_strides = [0usize; MAX_STATIC_RANK];
+        let mut rhs_strides = [0usize; MAX_STATIC_RANK];
+        let mut out_strides = [0usize; MAX_STATIC_RANK];
+        compute_strides_fixed(&self.shape, &mut self_strides, D);
+        compute_strides_fixed(&rhs.shape, &mut rhs_strides, D);
+        compute_strides_fixed(&out.shape, &mut out_strides, D);
+
+        let batch_count = self.shape[..D - 2].iter().product::<usize>();
+        if batch_count == 0 {
+            return;
+        }
+
+        let mut batch_multi_idx = [0usize; MAX_STATIC_RANK];
+
+        for batch_idx in 0..batch_count {
+            // unravel batch index into multi-index
+            unravel_index_fixed(batch_idx, &self.shape[..D - 2], &mut batch_multi_idx, D - 2);
+
+            // compute linear batch offsets
+            let self_batch_offset: usize = batch_multi_idx[..D - 2]
+                .iter()
+                .zip(&self_strides[..D - 2])
+                .map(|(&i, &s)| i * s)
+                .sum();
+            let rhs_batch_offset: usize = batch_multi_idx[..D - 2]
+                .iter()
+                .zip(&rhs_strides[..D - 2])
+                .map(|(&i, &s)| i * s)
+                .sum();
+            let out_batch_offset: usize = batch_multi_idx[..D - 2]
+                .iter()
+                .zip(&out_strides[..D - 2])
+                .map(|(&i, &s)| i * s)
+                .sum();
+
+            // linear inner matmul over last two dimensions
+            for i in 0..m {
+                let self_row_offset = self_batch_offset + i * self_strides[D - 2];
+                let out_row_offset = out_batch_offset + i * out_strides[D - 2];
+                let out_row = &mut out.data.as_mut_array()[out_row_offset..(out_row_offset + n)];
+
+                for kk in 0..k {
+                    let a = self.data[self_row_offset + kk];
+                    let rhs_row_offset = rhs_batch_offset + kk * rhs_strides[D - 2];
+                    let rhs_row = &rhs.data.as_array()[rhs_row_offset..(rhs_row_offset + n)];
+
+                    lazy_simd::simd::mul_add_scalar_slice(a, rhs_row, out_row);
+                }
+            }
+        }
+    }
+}
+
+impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
+    /// SIMD-accelerated single-precision matrix multiplication like [`Self::matmul`].
+    ///
+    /// This is purely an enhanced version of regular matrix multiplication with the
+    /// addition of SIMD acceleration. Implementation and details should be found
+    /// consulting that documentation, not this function.
+    ///
+    /// # Panics
+    ///
+    /// Same preconditions as generic `matmul`.
+    pub fn simd_matmul<const M: usize, const O: usize>(
+        &self,
+        rhs: &ArrTensor<f64, M, D>,
+        out: &mut ArrTensor<f64, O, D>,
+    ) {
+        const {
+            assert!(
+                D >= 2 && D <= MAX_STATIC_RANK,
+                "rank must be >=2 and <= MAX_STATIC_RANK"
+            );
+        }
+
+        let m = self.shape[D - 2];
+        let k = self.shape[D - 1];
+        let n = rhs.shape[D - 1];
+        if n == 0 {
+            return;
+        }
+
+        assert!(k == rhs.shape[D - 2], "inner dimensions must match");
+        assert!(
+            self.shape[..D - 2] == rhs.shape[..D - 2],
+            "batch dimensions must match"
+        );
+        assert!(
+            self.shape[..D - 2] == out.shape[..D - 2],
+            "batch dimensions must match output"
+        );
+
+        out.data.fill(0.0);
+
+        // compute strides once
+        let mut self_strides = [0usize; MAX_STATIC_RANK];
+        let mut rhs_strides = [0usize; MAX_STATIC_RANK];
+        let mut out_strides = [0usize; MAX_STATIC_RANK];
+        compute_strides_fixed(&self.shape, &mut self_strides, D);
+        compute_strides_fixed(&rhs.shape, &mut rhs_strides, D);
+        compute_strides_fixed(&out.shape, &mut out_strides, D);
+
+        let batch_count = self.shape[..D - 2].iter().product::<usize>();
+        if batch_count == 0 {
+            return;
+        }
+
+        let mut batch_multi_idx = [0usize; MAX_STATIC_RANK];
+
+        for batch_idx in 0..batch_count {
+            // unravel batch index into multi-index
+            unravel_index_fixed(batch_idx, &self.shape[..D - 2], &mut batch_multi_idx, D - 2);
+
+            // compute linear batch offsets
+            let self_batch_offset: usize = batch_multi_idx[..D - 2]
+                .iter()
+                .zip(&self_strides[..D - 2])
+                .map(|(&i, &s)| i * s)
+                .sum();
+            let rhs_batch_offset: usize = batch_multi_idx[..D - 2]
+                .iter()
+                .zip(&rhs_strides[..D - 2])
+                .map(|(&i, &s)| i * s)
+                .sum();
+            let out_batch_offset: usize = batch_multi_idx[..D - 2]
+                .iter()
+                .zip(&out_strides[..D - 2])
+                .map(|(&i, &s)| i * s)
+                .sum();
+
+            // linear inner matmul over last two dimensions
+            for i in 0..m {
+                let self_row_offset = self_batch_offset + i * self_strides[D - 2];
+                let out_row_offset = out_batch_offset + i * out_strides[D - 2];
+                let out_row = &mut out.data.as_mut_array()[out_row_offset..(out_row_offset + n)];
+
+                for kk in 0..k {
+                    let a = self.data[self_row_offset + kk];
+                    let rhs_row_offset = rhs_batch_offset + kk * rhs_strides[D - 2];
+                    let rhs_row = &rhs.data[rhs_row_offset..(rhs_row_offset + n)];
+
+                    lazy_simd::simd::mul_add_scalar_slice_double(a, rhs_row, out_row);
+                }
+            }
+        }
+    }
+}
+
+impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
+where 
+    T: SimdElement + Primitive,
+    [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
+    LaneCount<LANES>: SupportedLaneCount,
 {
     /// Transposes the tensor using a default axis permutation:
     /// - For 2D tensors, swaps the two axes.
@@ -486,10 +941,10 @@ where
     /// ```rust
     /// use tensor_optim::{ArrTensor, TensorOps};
     ///
-    /// let tensor = ArrTensor::<i32, 6, 2>::with_data([2, 3], [1, 2, 3, 4, 5, 6]);
+    /// let tensor = ArrTensor::<f32, 6, 2>::with_data([2, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     /// let transposed = tensor.transpose();
     /// assert_eq!(transposed.shape(), [3, 2]);
-    /// assert_eq!(transposed.data(), [1, 4, 2, 5, 3, 6]);
+    /// assert_eq!(transposed.data(), [1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
     /// ```
     #[must_use]
     pub fn transpose(&self) -> Self {
@@ -504,7 +959,7 @@ where
             rev
         };
 
-        self.transpose_axes(perm)
+        self.transpose_axes_unchecked(perm)
     }
 
     /// Returns a new `ArrTensor` with axes permuted according to `perm`.
@@ -518,10 +973,10 @@ where
     /// ```rust
     /// use tensor_optim::{ArrTensor, TensorOps};
     ///
-    /// let tensor = ArrTensor::<i32, 6, 2>::with_data([2, 3], [1, 2, 3, 4, 5, 6]);
+    /// let tensor = ArrTensor::<f32, 6, 2>::with_data([2, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     /// let transposed = tensor.transpose_axes([1, 0]);
     /// assert_eq!(transposed.shape(), [3, 2]);
-    /// assert_eq!(transposed.data(), [1, 4, 2, 5, 3, 6]);
+    /// assert_eq!(transposed.data(), [1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
     /// ```
     #[must_use]
     pub fn transpose_axes(&self, perm: [usize; D]) -> Self {
@@ -535,6 +990,14 @@ where
             }
         }
 
+        self.transpose_axes_unchecked(perm)
+    }
+
+    /// Permutes the axes of `self` assuming a valid permutation.
+    ///
+    /// This is roughly equivalent, though marginally more efficient, compared
+    /// to [`Self::transpose_axes`].
+    pub fn transpose_axes_unchecked(&self, perm: [usize; D]) -> Self {
         // compute new shape by permuting old shape
         let mut new_shape = [0usize; D];
         for i in 0..D {
@@ -575,7 +1038,7 @@ where
 
         Self {
             shape: new_shape,
-            data: new_data,
+            data: Simd::new(new_data),
         }
     }
 }
@@ -584,146 +1047,138 @@ where
 mod tests {
     use crate::{ArrTensor, TensorOps};
 
-    // helper constructor
-    fn tensor<T, const N: usize, const D: usize>(
-        shape: [usize; D],
-        buf: [T; N],
-    ) -> ArrTensor<T, N, D> {
-        ArrTensor::with_data(shape, buf)
-    }
-
     #[test]
     fn add_assign_tensor() {
-        let mut a = tensor([3], [1, 2, 3]);
-        let b = tensor([3], [4, 5, 6]);
+        let mut a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let b = ArrTensor::with_data([3], [4.0, 5.0, 6.0]);
         a += &b;
-        assert_eq!(a.data, [5, 7, 9]);
+        assert_eq!(a.data.to_array(), [5.0, 7.0, 9.0]);
     }
 
     #[test]
     fn sub_assign_tensor() {
-        let mut a = tensor([3], [5, 7, 9]);
-        let b = tensor([3], [4, 5, 6]);
+        let mut a = ArrTensor::with_data([3], [5.0, 7.0, 9.0]);
+        let b = ArrTensor::with_data([3], [4.0, 5.0, 6.0]);
         a -= &b;
-        assert_eq!(a.data, [1, 2, 3]);
+        assert_eq!(a.data.to_array(), [1.0, 2.0, 3.0]);
     }
 
     #[test]
     fn mul_assign_tensor() {
-        let mut a = tensor([3], [1, 2, 3]);
-        let b = tensor([3], [4, 5, 6]);
+        let mut a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let b = ArrTensor::with_data([3], [4.0, 5.0, 6.0]);
         a *= &b;
-        assert_eq!(a.data, [4, 10, 18]);
+        assert_eq!(a.data.to_array(), [4.0, 10.0, 18.0]);
     }
 
     #[test]
     fn div_assign_tensor() {
-        let mut a = tensor([3], [4, 10, 18]);
-        let b = tensor([3], [4, 5, 6]);
+        let mut a = ArrTensor::with_data([3], [4.0, 10.0, 18.0]);
+        let b = ArrTensor::with_data([3], [4.0, 5.0, 6.0]);
         a /= &b;
-        assert_eq!(a.data, [1, 2, 3]);
+        assert_eq!(a.data.to_array(), [1.0, 2.0, 3.0]);
     }
 
     #[test]
     fn add_assign_scalar() {
-        let mut a = tensor([3], [1, 2, 3]);
-        a += 1;
-        assert_eq!(a.data, [2, 3, 4]);
+        let mut a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        a += 1.0;
+        assert_eq!(a.data.to_array(), [2.0, 3.0, 4.0]);
     }
 
     #[test]
     fn sub_assign_scalar() {
-        let mut a = tensor([3], [5, 6, 7]);
-        a -= 2;
-        assert_eq!(a.data, [3, 4, 5]);
+        let mut a = ArrTensor::with_data([3], [5.0, 6.0, 7.0]);
+        a -= 2.0;
+        assert_eq!(a.data.to_array(), [3.0, 4.0, 5.0]);
     }
 
     #[test]
     fn mul_assign_scalar() {
-        let mut a = tensor([3], [1, 2, 3]);
-        a *= 3;
-        assert_eq!(a.data, [3, 6, 9]);
+        let mut a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        a *= 3.0;
+        assert_eq!(a.data.to_array(), [3.0, 6.0, 9.0]);
     }
 
     #[test]
     fn div_assign_scalar() {
-        let mut a = tensor([3], [4, 6, 8]);
-        a /= 2;
-        assert_eq!(a.data, [2, 3, 4]);
+        let mut a = ArrTensor::with_data([3], [4.0, 6.0, 8.0]);
+        a /= 2.0;
+        assert_eq!(a.data.to_array(), [2.0, 3.0, 4.0]);
     }
 
     #[test]
     fn add_tensor() {
-        let a = tensor([3], [1, 2, 3]);
-        let b = tensor([3], [4, 5, 6]);
+        let a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let b = ArrTensor::with_data([3], [4f64, 5.0, 6.0]);
         let c = a + b;
-        assert_eq!(c.data, [5, 7, 9]);
+        assert_eq!(c.data.to_array(), [5.0, 7.0, 9.0]);
     }
 
     #[test]
     fn sub_tensor() {
-        let a = tensor([3], [5, 7, 9]);
-        let b = tensor([3], [4, 5, 6]);
+        let a = ArrTensor::with_data([3], [5.0, 7.0, 9.0]);
+        let b = ArrTensor::with_data([3], [4f64, 5.0, 6.0]);
         let c = a - b;
-        assert_eq!(c.data, [1, 2, 3]);
+        assert_eq!(c.data.to_array(), [1.0, 2.0, 3.0]);
     }
 
     #[test]
     fn mul_tensor() {
-        let a = tensor([3], [1, 2, 3]);
-        let b = tensor([3], [4, 5, 6]);
+        let a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let b = ArrTensor::with_data([3], [4f64, 5.0, 6.0]);
         let c = a * b;
-        assert_eq!(c.data, [4, 10, 18]);
+        assert_eq!(c.data.to_array(), [4.0, 10.0, 18.0]);
     }
 
     #[test]
     fn div_tensor() {
-        let a = tensor([3], [4, 10, 18]);
-        let b = tensor([3], [4, 5, 6]);
+        let a = ArrTensor::with_data([3], [4.0, 10.0, 18.0]);
+        let b = ArrTensor::with_data([3], [4f64, 5.0, 6.0]);
         let c = a / b;
-        assert_eq!(c.data, [1, 2, 3]);
+        assert_eq!(c.data.to_array(), [1.0, 2.0, 3.0]);
     }
 
     #[test]
     fn add_scalar() {
-        let a = tensor([3], [1, 2, 3]);
-        let c = a + 1;
-        assert_eq!(c.data, [2, 3, 4]);
+        let a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let c = a + 1f64;
+        assert_eq!(c.data.to_array(), [2.0, 3.0, 4.0]);
     }
 
     #[test]
     fn sub_scalar() {
-        let a = tensor([3], [5, 6, 7]);
-        let c = a - 2;
-        assert_eq!(c.data, [3, 4, 5]);
+        let a = ArrTensor::with_data([3], [5.0, 6.0, 7.0]);
+        let c = a - 2f64;
+        assert_eq!(c.data.to_array(), [3.0, 4.0, 5.0]);
     }
 
     #[test]
     fn mul_scalar() {
-        let a = tensor([3], [1, 2, 3]);
-        let c = a * 3;
-        assert_eq!(c.data, [3, 6, 9]);
+        let a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let c = a * 3f64;
+        assert_eq!(c.data.to_array(), [3.0, 6.0, 9.0]);
     }
 
     #[test]
     fn div_scalar() {
-        let a = tensor([3], [4, 6, 8]);
-        let c = a / 2;
-        assert_eq!(c.data, [2, 3, 4]);
+        let a = ArrTensor::with_data([3], [4f64, 6.0, 8.0]);
+        let c = a / 2.0;
+        assert_eq!(c.data.to_array(), [2.0, 3.0, 4.0]);
     }
 
     #[test]
     fn tensor_2d_ops() {
-        let mut a = tensor([2, 2], [1, 2, 3, 4]);
-        let b = tensor([2, 2], [5, 6, 7, 8]);
+        let mut a = ArrTensor::with_data([2, 2], [1.0, 2.0, 3.0, 4.0]);
+        let b = ArrTensor::with_data([2, 2], [5f64, 6.0, 7.0, 8.0]);
         a += &b;
-        assert_eq!(a.data, [6, 8, 10, 12]);
+        assert_eq!(a.data.to_array(), [6.0, 8.0, 10.0, 12.0]);
     }
 
     #[test]
     fn data_shape_preservation() {
-        let a = tensor([3], [1, 2, 3]);
-        let b = tensor([3], [4, 5, 6]);
+        let a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let b = ArrTensor::with_data([3], [4f64, 5.0, 6.0]);
         let c = a.clone() + b.clone();
         assert_eq!(c.shape, a.shape);
         assert_eq!(c.shape, b.shape);
@@ -731,25 +1186,31 @@ mod tests {
 
     #[test]
     fn batched_matmul_simple() {
-        // Shape: [2, 2, 3] (2 batches, 2 rows, 3 cols)
+        // shape: [2, 2, 3] (2 batches, 2 rows, 3 cols)
         let a_data = [
-            1, 2, 3, 4, 5, 6, // batch 2
-            7, 8, 9, 10, 11, 12,
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 2
+            7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
         ];
         let a = ArrTensor::with_data([2, 2, 3], a_data);
 
-        // Shape: [2, 3, 2] (2 batches, 3 rows, 2 cols)
+        // shape: [2, 3, 2] (2 batches, 3 rows, 2 cols)
         let b_data = [
-            1, 2, 3, 4, 5, 6, // batch 2
-            7, 8, 9, 10, 11, 12,
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 2
+            7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
         ];
         let b = ArrTensor::with_data([2, 3, 2], b_data);
 
-        let mut out: ArrTensor<i32, 8, 3> = ArrTensor::new([2, 2, 2]);
+        let mut out: ArrTensor<f32, 8, 3> = ArrTensor::new([2, 2, 2]);
 
+        let expected = [22.0, 28.0, 49.0, 64.0, 220.0, 244.0, 301.0, 334.0];
+
+        // first normal matmul
         a.matmul(&b, &mut out);
 
-        let expected = [22, 28, 49, 64, 220, 244, 301, 334];
+        assert_eq!(out.data(), expected);
+
+        // then simd accelerated
+        a.simd_matmul(&b, &mut out);
 
         assert_eq!(out.data(), expected);
     }

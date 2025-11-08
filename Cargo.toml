@@ -1,9 +1,9 @@
 [package]
 name = "tensor_optim"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.88.0"
-description = "A tiny autodiff + tensor engine that doesn't compromise on flexibility"
+version = "0.1.1"
+edition = "2021"
+rust-version = "1.83.0"
+description = "A tiny tensor engine lacking compromise on portability"
 license = "MIT"
 documentation = "https://docs.rs/tensor_optim"
 keywords = ["tensor", "machine-learning", "scienctific-compute", "memory-efficient"]
@@ -11,10 +11,33 @@ categories = ["science", "mathematics", "data-structures", "embedded", "no-std::
 repository = "https://github.com/bobbothe2nd/tensor_optim"
 readme = "README.md"
 
+[profile.release]
+opt-level = 3
+codegen-units = 1
+incremental = true
+debug = false
+
+[profile.release.package."*"]
+opt-level = 3
+codegen-units = 1
+
 [features]
-default = []
 alloc = []
 
+[dependencies]
+lazy_simd = "0.1.0"
+
 [dev-dependencies]
-rand = "0.9.2"
 proptest = "1.7.0"
+
+[[test]]
+name = "transpose"
+required-features = [
+    "alloc",
+]
+
+[[test]]
+name = "map_zip_or_not"
+required-features = [
+    "alloc",
+]

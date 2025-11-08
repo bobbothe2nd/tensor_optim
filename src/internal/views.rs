@@ -4,7 +4,6 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign,
 /// A tensor-like structure that owns no data and holds only slices.
 ///
 /// The shape is `&'a [usize]`, meaning the shape can never be changed once instantiated.
-///
 /// The data is `&'a mut [data]`, allowing for the data to be changed at runtime.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RefTensor<'a, T> {
