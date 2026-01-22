@@ -1,8 +1,10 @@
-use lazy_simd::{MAX_SIMD_SINGLE_PRECISION_LANES, scalar::{AddByRef, DivByRef, MulByRef, Primitive, SubByRef}, simd::{
-    LaneCount, Simd, SimdElement, SupportedLaneCount, backend::AlignedSimd
-}};
-use crate::internal::{ConstTensorOps, TensorOps, };
+use crate::internal::{ConstTensorOps, TensorOps};
 use core::ops::{Add, AddAssign, Div, DivAssign, Index, Mul, MulAssign, Sub, SubAssign};
+use lazy_simd::{
+    scalar::{AddByRef, DivByRef, MulByRef, Primitive, SubByRef},
+    simd::{backend::AlignedSimd, LaneCount, Simd, SimdElement, SupportedLaneCount},
+    MAX_SIMD_SINGLE_PRECISION_LANES,
+};
 
 /// A tensor made up of statically sized arrays.
 ///
@@ -11,8 +13,12 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Index, Mul, MulAssign, Sub, SubA
 ///
 /// However, when flexibility is put before memory efficiency and performance, this becomes obsolete; use `DynTensor` instead.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ArrTensor<T, const N: usize, const D: usize, const LANES: usize = MAX_SIMD_SINGLE_PRECISION_LANES>
-where 
+pub struct ArrTensor<
+    T,
+    const N: usize,
+    const D: usize,
+    const LANES: usize = MAX_SIMD_SINGLE_PRECISION_LANES,
+> where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -22,7 +28,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -82,7 +88,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -106,7 +112,11 @@ where
     /// # Panics
     ///
     /// Both tensors, `self` and `other`, must have the same shape or a panic will occur.
-    pub fn zip_map<U, V, F>(&self, other: &ArrTensor<U, N, D, LANES>, mut f: F) -> ArrTensor<V, N, D, LANES>
+    pub fn zip_map<U, V, F>(
+        &self,
+        other: &ArrTensor<U, N, D, LANES>,
+        mut f: F,
+    ) -> ArrTensor<V, N, D, LANES>
     where
         U: SimdElement + Primitive,
         [U; LANES]: AlignedSimd<[U; LANES], U, { LANES }>,
@@ -125,8 +135,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> TensorOps<T> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> TensorOps<T>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -144,8 +155,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> ConstTensorOps<T, N, D> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> ConstTensorOps<T, N, D>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -163,8 +175,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> Index<&[usize]> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> Index<&[usize]>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -179,8 +192,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<Self> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<Self>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -191,8 +205,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<&Self> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<&Self>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -203,8 +218,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<T> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<T>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -214,8 +230,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<&T> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<&T>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -225,8 +242,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<Self> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<Self>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -237,8 +255,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<&Self> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<&Self>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -249,8 +268,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<T> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<T>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -260,8 +280,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<&T> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<&T>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -271,8 +292,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<T> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<T>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -282,8 +304,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<&T> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<&T>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -293,8 +316,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<Self> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<Self>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -305,8 +329,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<&Self> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<&Self>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -317,8 +342,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<T> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<T>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -328,8 +354,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<&T> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<&T>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -339,8 +366,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<Self> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<Self>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -351,8 +379,9 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<&Self> for ArrTensor<T, N, D, LANES>
-where 
+impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<&Self>
+    for ArrTensor<T, N, D, LANES>
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -364,7 +393,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Add<&Self> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -379,7 +408,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Add<Self> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -394,7 +423,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Add<T> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -408,7 +437,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Add<&T> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -422,7 +451,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Sub<&Self> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -437,7 +466,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Sub<Self> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -452,7 +481,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Sub<T> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -466,7 +495,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Sub<&T> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -480,7 +509,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Mul<&Self> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -495,7 +524,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Mul<Self> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -510,7 +539,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Mul<T> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -524,7 +553,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Mul<&T> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -538,7 +567,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Div<&Self> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -553,7 +582,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Div<Self> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -568,7 +597,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Div<T> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -582,7 +611,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Div<&T> for ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -618,7 +647,7 @@ fn unravel_index_fixed(
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -665,12 +694,12 @@ where
             return;
         }
 
-        assert!(k == rhs.shape[D - 2], "inner dimensions must match");
-        assert!(
+        debug_assert!(k == rhs.shape[D - 2], "inner dimensions must match");
+        debug_assert!(
             self.shape[..D - 2] == rhs.shape[..D - 2],
             "batch dimensions must match"
         );
-        assert!(
+        debug_assert!(
             self.shape[..D - 2] == out.shape[..D - 2],
             "batch dimensions must match output"
         );
@@ -761,12 +790,12 @@ impl<const N: usize, const D: usize> ArrTensor<f32, N, D> {
             return;
         }
 
-        assert!(k == rhs.shape[D - 2], "inner dimensions must match");
-        assert!(
+        debug_assert!(k == rhs.shape[D - 2], "inner dimensions must match");
+        debug_assert!(
             self.shape[..D - 2] == rhs.shape[..D - 2],
             "batch dimensions must match"
         );
-        assert!(
+        debug_assert!(
             self.shape[..D - 2] == out.shape[..D - 2],
             "batch dimensions must match output"
         );
@@ -856,12 +885,12 @@ impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
             return;
         }
 
-        assert!(k == rhs.shape[D - 2], "inner dimensions must match");
-        assert!(
+        debug_assert!(k == rhs.shape[D - 2], "inner dimensions must match");
+        debug_assert!(
             self.shape[..D - 2] == rhs.shape[..D - 2],
             "batch dimensions must match"
         );
-        assert!(
+        debug_assert!(
             self.shape[..D - 2] == out.shape[..D - 2],
             "batch dimensions must match output"
         );
@@ -923,7 +952,7 @@ impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
-where 
+where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
@@ -997,6 +1026,7 @@ where
     ///
     /// This is roughly equivalent, though marginally more efficient, compared
     /// to [`Self::transpose_axes`].
+    #[must_use]
     pub fn transpose_axes_unchecked(&self, perm: [usize; D]) -> Self {
         // compute new shape by permuting old shape
         let mut new_shape = [0usize; D];

@@ -40,7 +40,7 @@ pub trait TensorOps<T> {
 }
 
 /// Operations only statically sized, non-allocating tensors can leverage.
-pub trait ConstTensorOps<T, const N: usize, const D: usize> {
+pub trait ConstTensorOps<T, const N: usize, const D: usize>: TensorOps<T> {
     /// Provides the shape of the current tensor as an array.
     ///
     /// Note: the builtin `index_offset` method will work immediately if the shape is stored row-major.

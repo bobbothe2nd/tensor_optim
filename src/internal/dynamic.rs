@@ -1,5 +1,9 @@
 use alloc::{boxed::Box, vec, vec::Vec};
-use lazy_simd::{MAX_SIMD_SINGLE_PRECISION_LANES, scalar::Primitive, simd::{SimdElement, backend::NonAssociativeSimd}};
+use lazy_simd::{
+    scalar::Primitive,
+    simd::{backend::NonAssociativeSimd, SimdElement},
+    MAX_SIMD_SINGLE_PRECISION_LANES,
+};
 
 use crate::internal::TensorOps;
 
@@ -10,7 +14,7 @@ use crate::internal::TensorOps;
 /// and runtime efficiency.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DynTensor<T, const LANES: usize = MAX_SIMD_SINGLE_PRECISION_LANES>
-where 
+where
     T: SimdElement + Primitive,
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
@@ -19,7 +23,7 @@ where
 }
 
 impl<T, const LANES: usize> DynTensor<T, LANES>
-where 
+where
     T: SimdElement + Primitive,
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
@@ -77,7 +81,11 @@ where
     /// # Panics
     ///
     /// Both tensors, `self` and `other`, must have the same shape and data length or a panic will occur.
-    pub fn zip_map<U, V, F, const L1: usize, const L2: usize>(&self, other: &DynTensor<U, L1>, f: F) -> DynTensor<V, L2>
+    pub fn zip_map<U, V, F, const L1: usize, const L2: usize>(
+        &self,
+        other: &DynTensor<U, L1>,
+        f: F,
+    ) -> DynTensor<V, L2>
     where
         U: SimdElement + Primitive,
         [U; L1]: NonAssociativeSimd<[U; L1], U, L1>,
@@ -170,7 +178,7 @@ where
                 .sum::<usize>();
 
             // clone data element from old tensor
-            new_data.push(self.data[old_flat_idx].clone());
+            new_data.push(self.data[old_flat_idx]);
         }
 
         Self::from_vec(&new_shape, new_data)
@@ -195,7 +203,7 @@ where
 }
 
 impl<T, const LANES: usize> TensorOps<T> for DynTensor<T, LANES>
-where 
+where
     T: SimdElement + Primitive,
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
@@ -215,7 +223,7 @@ where
 use core::ops::{Add, AddAssign, Div, DivAssign, Index, Mul, MulAssign, Sub, SubAssign};
 
 impl<T, const LANES: usize> Index<&[usize]> for DynTensor<T, LANES>
-where 
+where
     T: SimdElement + Primitive,
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
@@ -228,58 +236,58 @@ where
     }
 }
 
-impl<T, const LANES: usize> AddAssign<&Self> for DynTensor<T, LANES>
+impl<T, const LANES: usize> AddAssign<Self> for DynTensor<T, LANES>
 where
     T: SimdElement + Primitive + Add<Output = T>,
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
-    fn add_assign(&mut self, rhs: &Self) {
+    fn add_assign(&mut self, rhs: Self) {
         assert_eq!(self.shape(), rhs.shape(), "shape mismatch");
         let dst = &mut self.data;
-        for (a, b) in dst.iter_mut().zip(rhs.data.iter()) {
-            *a = *a + *b;
+        for (a, b) in dst.iter_mut().zip(rhs.data.into_vec()) {
+            *a += b;
         }
     }
 }
 
-impl<T, const LANES: usize> SubAssign<&Self> for DynTensor<T, LANES>
+impl<T, const LANES: usize> SubAssign<Self> for DynTensor<T, LANES>
 where
     T: SimdElement + Primitive + Sub<Output = T>,
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
-    fn sub_assign(&mut self, rhs: &Self) {
+    fn sub_assign(&mut self, rhs: Self) {
         assert_eq!(self.shape(), rhs.shape(), "shape mismatch");
         let dst = &mut self.data;
-        for (a, b) in dst.iter_mut().zip(rhs.data.iter()) {
-            *a = *a - *b;
+        for (a, b) in dst.iter_mut().zip(rhs.data.into_vec()) {
+            *a -= b;
         }
     }
 }
 
-impl<T, const LANES: usize> MulAssign<&Self> for DynTensor<T, LANES>
+impl<T, const LANES: usize> MulAssign<Self> for DynTensor<T, LANES>
 where
     T: SimdElement + Primitive + Mul<Output = T>,
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
-    fn mul_assign(&mut self, rhs: &Self) {
+    fn mul_assign(&mut self, rhs: Self) {
         assert_eq!(self.shape(), rhs.shape(), "shape mismatch");
         let dst = &mut self.data;
-        for (a, b) in dst.iter_mut().zip(rhs.data.iter()) {
-            *a = *a * *b;
+        for (a, b) in dst.iter_mut().zip(rhs.data.into_vec()) {
+            *a *= b;
         }
     }
 }
 
-impl<T, const LANES: usize> DivAssign<&Self> for DynTensor<T, LANES>
+impl<T, const LANES: usize> DivAssign<Self> for DynTensor<T, LANES>
 where
     T: SimdElement + Primitive + Div<Output = T>,
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
-    fn div_assign(&mut self, rhs: &Self) {
+    fn div_assign(&mut self, rhs: Self) {
         assert_eq!(self.shape(), rhs.shape(), "shape mismatch");
         let dst = &mut self.data;
-        for (a, b) in dst.iter_mut().zip(rhs.data.iter()) {
-            *a = *a / *b;
+        for (a, b) in dst.iter_mut().zip(rhs.data.into_vec()) {
+            *a /= b;
         }
     }
 }
@@ -292,7 +300,7 @@ where
     fn add_assign(&mut self, rhs: T) {
         let dst = &mut self.data;
         for a in dst.iter_mut() {
-            *a = *a + rhs;
+            *a += rhs;
         }
     }
 }
@@ -305,7 +313,7 @@ where
     fn sub_assign(&mut self, rhs: T) {
         let dst = &mut self.data;
         for a in dst.iter_mut() {
-            *a = *a - rhs;
+            *a -= rhs;
         }
     }
 }
@@ -318,7 +326,7 @@ where
     fn mul_assign(&mut self, rhs: T) {
         let dst = &mut self.data;
         for a in dst.iter_mut() {
-            *a = *a * rhs;
+            *a *= rhs;
         }
     }
 }
@@ -331,7 +339,7 @@ where
     fn div_assign(&mut self, rhs: T) {
         let dst = &mut self.data;
         for a in dst.iter_mut() {
-            *a = *a / rhs;
+            *a /= rhs;
         }
     }
 }
@@ -346,9 +354,10 @@ where
         assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Add");
         let data: alloc::vec::Vec<T> = self
             .data
-            .iter()
-            .zip(rhs.data.iter())
-            .map(|(a, b)| *a + *b)
+            .into_vec()
+            .into_iter()
+            .zip(rhs.data.into_vec())
+            .map(|(a, b)| a + b)
             .collect();
         Self::from_vec(&self.shape, data)
     }
@@ -364,9 +373,10 @@ where
         assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Sub");
         let data: alloc::vec::Vec<T> = self
             .data
-            .iter()
-            .zip(rhs.data.iter())
-            .map(|(a, b)| *a - *b)
+            .into_vec()
+            .into_iter()
+            .zip(rhs.data.into_vec())
+            .map(|(a, b)| a - b)
             .collect();
         Self::from_vec(&self.shape, data)
     }
@@ -382,9 +392,10 @@ where
         assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Mul");
         let data: alloc::vec::Vec<T> = self
             .data
-            .iter()
-            .zip(rhs.data.iter())
-            .map(|(a, b)| *a * *b)
+            .into_vec()
+            .into_iter()
+            .zip(rhs.data.into_vec())
+            .map(|(a, b)| a * b)
             .collect();
         Self::from_vec(&self.shape, data)
     }
@@ -400,9 +411,10 @@ where
         assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Div");
         let data: alloc::vec::Vec<T> = self
             .data
-            .iter()
-            .zip(rhs.data.iter())
-            .map(|(a, b)| *a / *b)
+            .into_vec()
+            .into_iter()
+            .zip(rhs.data.into_vec())
+            .map(|(a, b)| a / b)
             .collect();
         Self::from_vec(&self.shape, data)
     }
@@ -763,7 +775,7 @@ mod tests {
     fn add_assign_tensor() {
         let mut a = make_tensor(&[1.0, 2.0, 3.0, 4.0], &[2, 2]);
         let b = make_tensor(&[5.0, 6.0, 7.0, 8.0], &[2, 2]);
-        a += &b;
+        a += b;
         assert_eq!(a.data.as_ref(), [6.0, 8.0, 10.0, 12.0]);
     }
 
@@ -772,14 +784,14 @@ mod tests {
     fn add_assign_shape_mismatch() {
         let mut a = make_tensor(&[1.0, 2.0, 3.0], &[3]);
         let b = make_tensor(&[4.0, 5.0], &[2]);
-        a += &b;
+        a += b;
     }
 
     #[test]
     fn sub_assign_tensor() {
         let mut a = make_tensor(&[10.0, 20.0, 30.0, 40.0], &[2, 2]);
         let b = make_tensor(&[1.0, 2.0, 3.0, 4.0], &[2, 2]);
-        a -= &b;
+        a -= b;
         assert_eq!(a.data.as_ref(), [9.0, 18.0, 27.0, 36.0]);
     }
 
@@ -787,7 +799,7 @@ mod tests {
     fn mul_assign_tensor() {
         let mut a = make_tensor(&[1.0, 2.0, 3.0, 4.0], &[2, 2]);
         let b = make_tensor(&[10.0, 20.0, 30.0, 40.0], &[2, 2]);
-        a *= &b;
+        a *= b;
         assert_eq!(a.data.as_ref(), [10.0, 40.0, 90.0, 160.0]);
     }
 
@@ -795,7 +807,7 @@ mod tests {
     fn div_assign_tensor() {
         let mut a = make_tensor(&[10.0, 20.0, 30.0, 40.0], &[2, 2]);
         let b = make_tensor(&[2.0, 4.0, 5.0, 10.0], &[2, 2]);
-        a /= &b;
+        a /= b;
         assert_eq!(a.data.as_ref(), [5.0, 5.0, 6.0, 4.0]);
     }
 
@@ -891,15 +903,13 @@ mod tests {
     fn batched_matmul_simple() {
         // Shape: [2, 2, 3] (2 batches, 2 rows, 3 cols)
         let a_data = [
-            1.0, 2.0, 3.0, 4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
         ];
         let a: DynTensor<f64> = DynTensor::with_data(&[2, 2, 3], &a_data);
 
         // Shape: [2, 3, 2] (2 batches, 3 rows, 2 cols)
         let b_data = [
-            1.0, 2.0, 3.0, 4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
         ];
         let b: DynTensor<f64> = DynTensor::with_data(&[2, 3, 2], &b_data);
 
