@@ -1,4 +1,8 @@
+#[cfg(feature = "no_stack")]
+pub mod arr_box;
+#[cfg(not(feature = "no_stack"))]
 pub mod array;
+
 pub mod views;
 
 #[cfg(feature = "alloc")]
@@ -39,7 +43,7 @@ pub trait TensorOps<T> {
     }
 }
 
-/// Operations only statically sized, non-allocating tensors can leverage.
+/// Operations only statically sized, non-allocating tensors can use.
 pub trait ConstTensorOps<T, const N: usize, const D: usize>: TensorOps<T> {
     /// Provides the shape of the current tensor as an array.
     ///
@@ -57,7 +61,175 @@ pub trait ConstTensorOps<T, const N: usize, const D: usize>: TensorOps<T> {
     fn data_mut_array(&mut self) -> &mut [T; N];
 }
 
-/// A small limit to ranks.
-///
-/// Primarily for matrix multiplication in `ArrTensor`.
-pub const MAX_STATIC_RANK: usize = 12;
+#[cfg(test)]
+mod tests {
+    use crate::{ArrTensor, TensorOps};
+
+    #[test]
+    fn add_assign_tensor() {
+        let mut a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let b = ArrTensor::with_data([3], [4.0, 5.0, 6.0]);
+        a += b;
+        assert_eq!(a.data(), [5.0, 7.0, 9.0]);
+    }
+
+    #[test]
+    fn sub_assign_tensor() {
+        let mut a = ArrTensor::with_data([3], [5.0, 7.0, 9.0]);
+        let b = ArrTensor::with_data([3], [4.0, 5.0, 6.0]);
+        a -= b;
+        assert_eq!(a.data(), [1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn mul_assign_tensor() {
+        let mut a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let b = ArrTensor::with_data([3], [4.0, 5.0, 6.0]);
+        a *= b;
+        assert_eq!(a.data(), [4.0, 10.0, 18.0]);
+    }
+
+    #[test]
+    fn div_assign_tensor() {
+        let mut a = ArrTensor::with_data([3], [4.0, 10.0, 18.0]);
+        let b = ArrTensor::with_data([3], [4.0, 5.0, 6.0]);
+        a /= b;
+        assert_eq!(a.data(), [1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn add_assign_scalar() {
+        let mut a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        a += 1.0;
+        assert_eq!(a.data(), [2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn sub_assign_scalar() {
+        let mut a = ArrTensor::with_data([3], [5.0, 6.0, 7.0]);
+        a -= 2.0;
+        assert_eq!(a.data(), [3.0, 4.0, 5.0]);
+    }
+
+    #[test]
+    fn mul_assign_scalar() {
+        let mut a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        a *= 3.0;
+        assert_eq!(a.data(), [3.0, 6.0, 9.0]);
+    }
+
+    #[test]
+    fn div_assign_scalar() {
+        let mut a = ArrTensor::with_data([3], [4.0, 6.0, 8.0]);
+        a /= 2.0;
+        assert_eq!(a.data(), [2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn add_tensor() {
+        let a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let b = ArrTensor::with_data([3], [4f64, 5.0, 6.0]);
+        let c = a + b;
+        assert_eq!(c.data(), [5.0, 7.0, 9.0]);
+    }
+
+    #[test]
+    fn sub_tensor() {
+        let a = ArrTensor::with_data([3], [5.0, 7.0, 9.0]);
+        let b = ArrTensor::with_data([3], [4f64, 5.0, 6.0]);
+        let c = a - b;
+        assert_eq!(c.data(), [1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn mul_tensor() {
+        let a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let b = ArrTensor::with_data([3], [4f64, 5.0, 6.0]);
+        let c = a * b;
+        assert_eq!(c.data(), [4.0, 10.0, 18.0]);
+    }
+
+    #[test]
+    fn div_tensor() {
+        let a = ArrTensor::with_data([3], [4.0, 10.0, 18.0]);
+        let b = ArrTensor::with_data([3], [4f64, 5.0, 6.0]);
+        let c = a / b;
+        assert_eq!(c.data(), [1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn add_scalar() {
+        let a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let c = a + 1f64;
+        assert_eq!(c.data(), [2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn sub_scalar() {
+        let a = ArrTensor::with_data([3], [5.0, 6.0, 7.0]);
+        let c = a - 2f64;
+        assert_eq!(c.data(), [3.0, 4.0, 5.0]);
+    }
+
+    #[test]
+    fn mul_scalar() {
+        let a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let c = a * 3f64;
+        assert_eq!(c.data(), [3.0, 6.0, 9.0]);
+    }
+
+    #[test]
+    fn div_scalar() {
+        let a = ArrTensor::with_data([3], [4f64, 6.0, 8.0]);
+        let c = a / 2.0;
+        assert_eq!(c.data(), [2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn tensor_2d_ops() {
+        let mut a = ArrTensor::with_data([2, 2], [1.0, 2.0, 3.0, 4.0]);
+        let b = ArrTensor::with_data([2, 2], [5f64, 6.0, 7.0, 8.0]);
+        a += b;
+        assert_eq!(a.data(), [6.0, 8.0, 10.0, 12.0]);
+    }
+
+    #[test]
+    fn data_shape_preservation() {
+        let a = ArrTensor::with_data([3], [1.0, 2.0, 3.0]);
+        let b = ArrTensor::with_data([3], [4f64, 5.0, 6.0]);
+        let c = a.clone() + b.clone();
+        assert_eq!(c.shape(), a.shape());
+        assert_eq!(c.shape(), b.shape());
+    }
+
+    #[test]
+    fn batched_matmul_simple() {
+        // shape: [2, 2, 3] (2 batches, 2 rows, 3 cols)
+        let a_data = [
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 2
+            7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+        ];
+        let a = ArrTensor::with_data([2, 2, 3], a_data);
+
+        // shape: [2, 3, 2] (2 batches, 3 rows, 2 cols)
+        let b_data = [
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 2
+            7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+        ];
+        let b = ArrTensor::with_data([2, 3, 2], b_data);
+
+        let mut out: ArrTensor<f32, 8, 3> = ArrTensor::new([2, 2, 2]);
+
+        let expected = [22.0, 28.0, 49.0, 64.0, 220.0, 244.0, 301.0, 334.0];
+
+        // first normal matmul
+        a.matmul(&b, &mut out);
+
+        assert_eq!(out.data(), expected);
+
+        // then simd accelerated
+        a.simd_matmul(&b, &mut out);
+
+        assert_eq!(out.data(), expected);
+    }
+}

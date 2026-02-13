@@ -15,11 +15,11 @@ A no-std compatible, zero-unsafe public API Rust library providing foundational 
 
 `tensor_optim` offers three primary tensor types representing different ownership and allocation models:
 
-| Type         | Ownership                  | Allocation                 | Use Case                                              |
-|--------------|----------------------------|----------------------------|-------------------------------------------------------|
-| `RefTensor`* | Borrowed mutable slices    | None (zero-copy views)     | Temporary tensor views, zero-allocation borrowing     |
-| `ArrTensor`  | Fully owned, fixed size    | Stack                      | Fixed-shape tensors in embedded or realtime systems   |
-| `DynTensor`  | Fully owned, dynamic size  | Heap (behind `alloc` flag) | Flexible tensor sizes with shared ownership via `Arc` |
+| Type         | Ownership                  | Allocation                 | Use Case                                            |
+|--------------|----------------------------|----------------------------|-----------------------------------------------------|
+| `RefTensor`* | Borrowed mutable slices    | None (zero-copy views)     | Temporary tensor views, zero-allocation borrowing   |
+| `ArrTensor`  | Fully owned, fixed size    | Stack                      | Fixed-shape tensors in embedded or realtime systems |
+| `DynTensor`  | Fully owned, dynamic size  | Heap (behind `alloc` flag) | Flexible tensor sizes with ownership via `Box`      |
 
 [*] `RefTensor` is a special tensor type that doesn't own anything and lacks capability like matrix multiplication and transposition.
 
@@ -27,12 +27,13 @@ A no-std compatible, zero-unsafe public API Rust library providing foundational 
 
 - The **public API is 100% safe Rust**; no `unsafe` code is exposed or required by users.
 - The design delivers near-zero-cost abstractions without compromising soundness or correctness.
+- All unsafe code is contained and used only for optimization purposes.
 
 ## Explanation
 
 - Use `RefTensor` to create zero-copy views into existing data without allocation or ownership transfer.
 - Use `ArrTensor` for fixed-size tensors with deterministic, stack-allocated memory layout.
-- Enable the `alloc` feature and use `DynTensor` for dynamically sized tensors requiring heap allocation and shared ownership.
+- Enable the `alloc` feature and use `DynTensor` for dynamically sized tensors requiring heap allocation and ownership.
 
 All tensor types support (with the exception of `RefTensor`):
 
@@ -52,9 +53,9 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tensor_optim = "0.2.1"
+tensor_optim = "0.3.1"
 # or enable dynamic tensors:
-# tensor_optim = { version = "0.2.1", features = ["alloc"] }
+# tensor_optim = { version = "0.3.1", features = ["alloc"] }
 ```
 
 or just run this command: `cargo add tensor_optim`.

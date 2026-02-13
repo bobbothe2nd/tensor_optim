@@ -14,7 +14,6 @@
 //! It doesn't even need `alloc` unless the `alloc` feature (off by default) is enabled.
 
 #![forbid(missing_docs)]
-#![forbid(unsafe_code)]
 #![forbid(clippy::nursery)]
 #![forbid(clippy::all)]
 #![warn(clippy::pedantic)]
@@ -26,11 +25,15 @@ extern crate alloc;
 
 mod internal;
 
-pub use internal::array::ArrTensor;
 pub use internal::views::RefTensor;
 pub use internal::ConstTensorOps;
 pub use internal::TensorOps;
-pub use internal::MAX_STATIC_RANK;
+
+#[cfg(feature = "no_stack")]
+pub use internal::arr_box::ArrTensor;
+
+#[cfg(not(feature = "no_stack"))]
+pub use internal::array::ArrTensor;
 
 #[cfg(feature = "alloc")]
 pub use internal::dynamic::DynTensor;

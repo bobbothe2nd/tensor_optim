@@ -3,8 +3,7 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign,
 
 /// A tensor-like structure that owns no data and holds only slices.
 ///
-/// The shape is `&'a [usize]`, meaning the shape can never be changed once instantiated.
-/// The data is `&'a mut [data]`, allowing for the data to be changed at runtime.
+/// The shape is `&'a [usize]`. The data is `&'a mut [data]`.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RefTensor<'a, T> {
     shape: &'a [usize],
@@ -83,7 +82,7 @@ where
     T: Copy + Add<Output = T>,
 {
     fn add_assign(&mut self, rhs: &Self) {
-        assert_eq!(self.shape, rhs.shape, "shape mismatch");
+        debug_assert_eq!(self.shape, rhs.shape, "shape mismatch in Add");
         for (a, b) in self.data.iter_mut().zip(rhs.data.iter()) {
             *a = *a + *b;
         }
@@ -95,7 +94,7 @@ where
     T: Copy + Sub<Output = T>,
 {
     fn sub_assign(&mut self, rhs: &Self) {
-        assert_eq!(self.shape, rhs.shape, "shape mismatch");
+        debug_assert_eq!(self.shape, rhs.shape, "shape mismatch in Sub");
         for (a, b) in self.data.iter_mut().zip(rhs.data.iter()) {
             *a = *a - *b;
         }
@@ -107,7 +106,7 @@ where
     T: Copy + Mul<Output = T>,
 {
     fn mul_assign(&mut self, rhs: &Self) {
-        assert_eq!(self.shape, rhs.shape, "shape mismatch");
+        debug_assert_eq!(self.shape, rhs.shape, "shape mismatch in Mul");
         for (a, b) in self.data.iter_mut().zip(rhs.data.iter()) {
             *a = *a * *b;
         }
@@ -119,7 +118,7 @@ where
     T: Copy + Div<Output = T>,
 {
     fn div_assign(&mut self, rhs: &Self) {
-        assert_eq!(self.shape, rhs.shape, "shape mismatch");
+        debug_assert_eq!(self.shape, rhs.shape, "shape mismatch in Div");
         for (a, b) in self.data.iter_mut().zip(rhs.data.iter()) {
             *a = *a / *b;
         }

@@ -5,7 +5,7 @@ use lazy_simd::{
     MAX_SIMD_SINGLE_PRECISION_LANES,
 };
 
-use crate::internal::TensorOps;
+use super::TensorOps;
 
 /// Moderately flexible tensors that allow for almost any data.
 ///
@@ -51,7 +51,7 @@ where
     where
         T: Default,
     {
-        assert_eq!(
+        debug_assert_eq!(
             shape.iter().product::<usize>(),
             data.len(),
             "shape and data length mismatch"
@@ -69,7 +69,7 @@ where
     /// If the length of the `Vec` is not equal to the product of each dimension in the shape, this constructor panics.
     #[must_use]
     pub fn from_vec(shape: &[usize], vec: Vec<T>) -> Self {
-        assert_eq!(shape.iter().product::<usize>(), vec.len());
+        debug_assert_eq!(shape.iter().product::<usize>(), vec.len());
         Self {
             shape: shape.into(),
             data: vec.into_boxed_slice(),
@@ -93,8 +93,8 @@ where
         [V; L2]: NonAssociativeSimd<[V; L2], V, L2>,
         F: Fn(&T, &U) -> V,
     {
-        assert_eq!(&*self.shape, &*other.shape, "shape mismatch in zip_map");
-        assert_eq!(self.data.len(), other.data.len());
+        debug_assert_eq!(&*self.shape, &*other.shape, "shape mismatch in zip_map");
+        debug_assert_eq!(self.data.len(), other.data.len());
 
         let new_data: Vec<V> = self
             .data
@@ -134,18 +134,18 @@ where
     #[must_use]
     pub fn transpose_axes(&self, perm: &[usize]) -> Self {
         let rank = self.shape.len();
-        assert_eq!(
+        debug_assert_eq!(
             perm.len(),
             rank,
-            "Permutation length must equal tensor rank"
+            "permutation length must equal tensor rank"
         );
 
         // validate perm is a permutation of [0..rank)
         {
             let mut seen = vec![false; rank];
             for &p in perm {
-                assert!(p < rank, "Invalid axis in permutation");
-                assert!(!seen[p], "Duplicate axis in permutation");
+                debug_assert!(p < rank, "invalid axis in permutation");
+                debug_assert!(!seen[p], "duplicate axis in permutation");
                 seen[p] = true;
             }
         }
@@ -242,7 +242,7 @@ where
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
     fn add_assign(&mut self, rhs: Self) {
-        assert_eq!(self.shape(), rhs.shape(), "shape mismatch");
+        debug_assert_eq!(self.shape, rhs.shape, "shape mismatch in AddAssign");
         let dst = &mut self.data;
         for (a, b) in dst.iter_mut().zip(rhs.data.into_vec()) {
             *a += b;
@@ -256,7 +256,7 @@ where
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
     fn sub_assign(&mut self, rhs: Self) {
-        assert_eq!(self.shape(), rhs.shape(), "shape mismatch");
+        debug_assert_eq!(self.shape, rhs.shape, "shape mismatch in SubAssign");
         let dst = &mut self.data;
         for (a, b) in dst.iter_mut().zip(rhs.data.into_vec()) {
             *a -= b;
@@ -270,7 +270,7 @@ where
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
     fn mul_assign(&mut self, rhs: Self) {
-        assert_eq!(self.shape(), rhs.shape(), "shape mismatch");
+        debug_assert_eq!(self.shape, rhs.shape, "shape mismatch in MulAssign");
         let dst = &mut self.data;
         for (a, b) in dst.iter_mut().zip(rhs.data.into_vec()) {
             *a *= b;
@@ -284,7 +284,7 @@ where
     [T; LANES]: NonAssociativeSimd<[T; LANES], T, LANES>,
 {
     fn div_assign(&mut self, rhs: Self) {
-        assert_eq!(self.shape(), rhs.shape(), "shape mismatch");
+        debug_assert_eq!(self.shape, rhs.shape, "shape mismatch in DivAssign");
         let dst = &mut self.data;
         for (a, b) in dst.iter_mut().zip(rhs.data.into_vec()) {
             *a /= b;
@@ -351,7 +351,7 @@ where
 {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
-        assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Add");
+        debug_assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Add");
         let data: alloc::vec::Vec<T> = self
             .data
             .into_vec()
@@ -370,7 +370,7 @@ where
 {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
-        assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Sub");
+        debug_assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Sub");
         let data: alloc::vec::Vec<T> = self
             .data
             .into_vec()
@@ -389,7 +389,7 @@ where
 {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self {
-        assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Mul");
+        debug_assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Mul");
         let data: alloc::vec::Vec<T> = self
             .data
             .into_vec()
@@ -408,7 +408,7 @@ where
 {
     type Output = Self;
     fn div(self, rhs: Self) -> Self {
-        assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Div");
+        debug_assert_eq!(self.shape(), rhs.shape(), "shape mismatch in Div");
         let data: alloc::vec::Vec<T> = self
             .data
             .into_vec()
@@ -427,7 +427,7 @@ where
 {
     type Output = Self;
     fn add(self, rhs: T) -> Self {
-        let data: alloc::vec::Vec<T> = self.data.iter().map(|&a| a + rhs).collect();
+        let data: alloc::vec::Vec<T> = self.data.into_vec().into_iter().map(|a| a + rhs).collect();
         Self::from_vec(&self.shape, data)
     }
 }
@@ -439,7 +439,7 @@ where
 {
     type Output = Self;
     fn sub(self, rhs: T) -> Self {
-        let data: alloc::vec::Vec<T> = self.data.iter().map(|&a| a - rhs).collect();
+        let data: alloc::vec::Vec<T> = self.data.into_vec().into_iter().map(|a| a - rhs).collect();
         Self::from_vec(&self.shape, data)
     }
 }
@@ -451,7 +451,7 @@ where
 {
     type Output = Self;
     fn mul(self, rhs: T) -> Self {
-        let data: alloc::vec::Vec<T> = self.data.iter().map(|&a| a * rhs).collect();
+        let data: alloc::vec::Vec<T> = self.data.into_vec().into_iter().map(|a| a * rhs).collect();
         Self::from_vec(&self.shape, data)
     }
 }
@@ -463,7 +463,7 @@ where
 {
     type Output = Self;
     fn div(self, rhs: T) -> Self {
-        let data: alloc::vec::Vec<T> = self.data.iter().map(|&a| a / rhs).collect();
+        let data: alloc::vec::Vec<T> = self.data.into_vec().into_iter().map(|a| a / rhs).collect();
         Self::from_vec(&self.shape, data)
     }
 }
@@ -497,15 +497,15 @@ where
         let self_rank = self.shape.len();
         let rhs_rank = rhs.shape.len();
 
-        assert!(self_rank >= 2 && rhs_rank >= 2, "matmul requires rank >= 2");
+        debug_assert!(self_rank >= 2 && rhs_rank >= 2, "matmul requires rank >= 2");
 
         let m = self.shape[self_rank - 2];
         let k = self.shape[self_rank - 1];
         let n = rhs.shape[rhs_rank - 1];
-        assert!(k == rhs.shape[rhs_rank - 2], "inner dimensions must match");
+        debug_assert!(k == rhs.shape[rhs_rank - 2], "inner dimensions must match");
 
         let batch_shape = &self.shape[..self_rank - 2];
-        assert!(
+        debug_assert!(
             batch_shape == &rhs.shape[..rhs_rank - 2],
             "batch dimensions must match"
         );
@@ -585,15 +585,15 @@ impl DynTensor<f32> {
         let self_rank = self.shape.len();
         let rhs_rank = rhs.shape.len();
 
-        assert!(self_rank >= 2 && rhs_rank >= 2, "matmul requires rank >= 2");
+        debug_assert!(self_rank >= 2 && rhs_rank >= 2, "matmul requires rank >= 2");
 
         let m = self.shape[self_rank - 2];
         let k = self.shape[self_rank - 1];
         let n = rhs.shape[rhs_rank - 1];
-        assert!(k == rhs.shape[rhs_rank - 2], "inner dimensions must match");
+        debug_assert!(k == rhs.shape[rhs_rank - 2], "inner dimensions must match");
 
         let batch_shape = &self.shape[..self_rank - 2];
-        assert!(
+        debug_assert!(
             batch_shape == &rhs.shape[..rhs_rank - 2],
             "batch dimensions must match"
         );
@@ -667,15 +667,15 @@ impl DynTensor<f64> {
         let self_rank = self.shape.len();
         let rhs_rank = rhs.shape.len();
 
-        assert!(self_rank >= 2 && rhs_rank >= 2, "matmul requires rank >= 2");
+        debug_assert!(self_rank >= 2 && rhs_rank >= 2, "matmul requires rank >= 2");
 
         let m = self.shape[self_rank - 2];
         let k = self.shape[self_rank - 1];
         let n = rhs.shape[rhs_rank - 1];
-        assert!(k == rhs.shape[rhs_rank - 2], "inner dimensions must match");
+        debug_assert!(k == rhs.shape[rhs_rank - 2], "inner dimensions must match");
 
         let batch_shape = &self.shape[..self_rank - 2];
-        assert!(
+        debug_assert!(
             batch_shape == &rhs.shape[..rhs_rank - 2],
             "batch dimensions must match"
         );
