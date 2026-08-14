@@ -6,9 +6,6 @@ use lazy_simd::{
     MAX_SIMD_SINGLE_PRECISION_LANES,
 };
 
-#[cfg(feature = "alloc")]
-use alloc::boxed::Box;
-
 /// A tensor made up of statically sized arrays.
 ///
 /// Often the best choice for embedded tensor operations because it doesn't use any OS-dependent features like heap allocators.
@@ -27,10 +24,10 @@ pub struct ArrTensor<
     LaneCount<LANES>: SupportedLaneCount,
 {
     shape: [usize; D],
-    data: Simd<T, N, LANES>, // vector instead of array
+    data: Simd<T, N, LANES>,
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -103,14 +100,13 @@ where
     /// const SHAPE: [usize; 2] = [2, 3];
     ///
     /// let data = Box::new([0f64; 6]);
-    /// let mut tensor = ArrTensor::box_data(SHAPE, data);
+    /// let mut tensor = ArrTensor::ref_data(SHAPE, &data);
     ///
     /// tensor += 42.0;
     /// println!("first element: {}", tensor[&[0, 0]]);
     /// ```
     #[must_use]
-    #[cfg(feature = "alloc")]
-    pub fn box_data(shape: [usize; D], data: Box<[T; N]>) -> Self {
+    pub fn ref_data(shape: [usize; D], data: &[T; N]) -> Self {
         debug_assert_eq!(
             shape.iter().product::<usize>(),
             N,
@@ -123,14 +119,14 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
     LaneCount<LANES>: SupportedLaneCount,
 {
-    /// Map each element of `ArrTensor<T, N, D, LANES>` to `ArrTensor<U, N, D>` by applying `f` elementwise.
-    pub fn map<U, F>(&self, mut f: F) -> ArrTensor<U, N, D, LANES>
+    /// Map each element of `ArrTensor<T, N, { D }, LANES>` to `ArrTensor<U, N, { D }>` by applying `f` elementwise.
+    pub fn map<U, F>(&self, mut f: F) -> ArrTensor<U, N, { D }, LANES>
     where
         F: FnMut(&T) -> U,
         U: SimdElement + Primitive,
@@ -150,9 +146,9 @@ where
     /// Both tensors, `self` and `other`, must have the same shape or a panic will occur.
     pub fn zip_map<U, V, F>(
         &self,
-        other: &ArrTensor<U, N, D, LANES>,
+        other: &ArrTensor<U, N, { D }, LANES>,
         mut f: F,
-    ) -> ArrTensor<V, N, D, LANES>
+    ) -> ArrTensor<V, N, { D }, LANES>
     where
         U: SimdElement + Primitive,
         [U; LANES]: AlignedSimd<[U; LANES], U, { LANES }>,
@@ -172,7 +168,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> TensorOps<T>
-    for ArrTensor<T, N, D, LANES>
+    for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -191,8 +187,8 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> ConstTensorOps<T, N, D>
-    for ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> ConstTensorOps<T, N, { D }>
+    for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -212,7 +208,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> Index<&[usize]>
-    for ArrTensor<T, N, D, LANES>
+    for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -229,7 +225,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<Self>
-    for ArrTensor<T, N, D, LANES>
+    for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -242,7 +238,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> AddAssign<T>
-    for ArrTensor<T, N, D, LANES>
+    for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -254,7 +250,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<Self>
-    for ArrTensor<T, N, D, LANES>
+    for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -267,7 +263,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> SubAssign<T>
-    for ArrTensor<T, N, D, LANES>
+    for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -279,7 +275,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<T>
-    for ArrTensor<T, N, D, LANES>
+    for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -291,7 +287,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> MulAssign<Self>
-    for ArrTensor<T, N, D, LANES>
+    for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -304,7 +300,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<T>
-    for ArrTensor<T, N, D, LANES>
+    for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -316,7 +312,7 @@ where
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> DivAssign<Self>
-    for ArrTensor<T, N, D, LANES>
+    for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -328,7 +324,7 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> Add<Self> for ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> Add<Self> for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -342,7 +338,7 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> Add<T> for ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> Add<T> for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -356,7 +352,7 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> Sub<Self> for ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> Sub<Self> for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -370,7 +366,7 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> Sub<T> for ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> Sub<T> for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -384,7 +380,7 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> Mul<Self> for ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> Mul<Self> for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -398,7 +394,7 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> Mul<T> for ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> Mul<T> for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -412,7 +408,7 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> Div<Self> for ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> Div<Self> for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -426,7 +422,7 @@ where
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> Div<T> for ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> Div<T> for ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -440,20 +436,18 @@ where
     }
 }
 
-use super::MAX_STATIC_RANK;
-
-fn compute_strides_fixed(shape: &[usize], out: &mut [usize; MAX_STATIC_RANK], rank: usize) {
+fn compute_strides_fixed<const D: usize>(shape: &[usize], out: &mut [usize; D]) {
     let mut stride = 1;
-    for i in (0..rank).rev() {
+    for i in (0..D).rev() {
         out[i] = stride;
         stride *= shape[i];
     }
 }
 
-fn unravel_index_fixed(
+fn unravel_index_fixed<const D: usize>(
     mut idx: usize,
     shape: &[usize],
-    out: &mut [usize; MAX_STATIC_RANK],
+    out: &mut [usize; D],
     rank: usize,
 ) {
     for i in (0..rank).rev() {
@@ -462,7 +456,7 @@ fn unravel_index_fixed(
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive + Default,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -471,7 +465,7 @@ where
     /// Batched matmul over arbitrary leading batch dims:
     /// Contracts last dim of `self` with second-last dim of `rhs`.
     ///
-    /// Matrix multiplication cannot be performed on `ArrTensor`s when the dimensions exceed `MAX_STATIC_RANK`.
+    /// Matrix multiplication cannot be performed on `ArrTensor`s when the dimensions exceed `D`.
     /// To bypass this limit, `DynTensor` can be used which is allocated on the heap.
     ///
     /// # Example
@@ -493,13 +487,13 @@ where
     /// Every one of those must be true.
     pub fn matmul<const M: usize, const O: usize>(
         &self,
-        rhs: &ArrTensor<T, M, D, LANES>,
-        out: &mut ArrTensor<T, O, D, LANES>,
+        rhs: &ArrTensor<T, M, { D }, LANES>,
+        out: &mut ArrTensor<T, O, { D }, LANES>,
     ) {
         const {
             debug_assert!(
-                D >= 2 && D <= MAX_STATIC_RANK,
-                "rank must be >=2 and <= MAX_STATIC_RANK"
+                D >= 2,
+                "rank must be >=2"
             );
         }
 
@@ -522,26 +516,23 @@ where
 
         out.data.fill(T::default());
 
-        // compute strides once
-        let mut self_strides = [0usize; MAX_STATIC_RANK];
-        let mut rhs_strides = [0usize; MAX_STATIC_RANK];
-        let mut out_strides = [0usize; MAX_STATIC_RANK];
-        compute_strides_fixed(&self.shape, &mut self_strides, D);
-        compute_strides_fixed(&rhs.shape, &mut rhs_strides, D);
-        compute_strides_fixed(&out.shape, &mut out_strides, D);
+        let mut self_strides = [0usize; D];
+        let mut rhs_strides = [0usize; D];
+        let mut out_strides = [0usize; D];
+        compute_strides_fixed(&self.shape, &mut self_strides);
+        compute_strides_fixed(&rhs.shape, &mut rhs_strides);
+        compute_strides_fixed(&out.shape, &mut out_strides);
 
         let batch_count = self.shape[..D - 2].iter().product::<usize>();
         if batch_count == 0 {
             return;
         }
 
-        let mut batch_multi_idx = [0usize; MAX_STATIC_RANK];
+        let mut batch_multi_idx = [0usize; D];
 
         for batch_idx in 0..batch_count {
-            // unravel batch index into multi-index
             unravel_index_fixed(batch_idx, &self.shape[..D - 2], &mut batch_multi_idx, D - 2);
 
-            // compute linear batch offsets
             let self_batch_offset: usize = batch_multi_idx[..D - 2]
                 .iter()
                 .zip(&self_strides[..D - 2])
@@ -558,7 +549,6 @@ where
                 .map(|(&i, &s)| i * s)
                 .sum();
 
-            // linear inner matmul over last two dimensions
             for i in 0..m {
                 let self_row_offset = self_batch_offset + i * self_strides[D - 2];
                 let out_row_offset = out_batch_offset + i * out_strides[D - 2];
@@ -577,7 +567,7 @@ where
     }
 }
 
-impl<const N: usize, const D: usize> ArrTensor<f32, N, D> {
+impl<const N: usize, const D: usize> ArrTensor<f32, N, { D }> {
     /// SIMD-accelerated matrix multiplication like [`Self::matmul`].
     ///
     /// This is purely an enhanced version of regular matrix multiplication with the
@@ -589,13 +579,13 @@ impl<const N: usize, const D: usize> ArrTensor<f32, N, D> {
     /// Same preconditions as generic `matmul`.
     pub fn simd_matmul<const M: usize, const O: usize>(
         &self,
-        rhs: &ArrTensor<f32, M, D>,
-        out: &mut ArrTensor<f32, O, D>,
+        rhs: &ArrTensor<f32, M, { D }>,
+        out: &mut ArrTensor<f32, O, { D }>,
     ) {
         const {
             debug_assert!(
-                D >= 2 && D <= MAX_STATIC_RANK,
-                "rank must be >=2 and <= MAX_STATIC_RANK"
+                D >= 2,
+                "rank must be >=2"
             );
         }
 
@@ -618,26 +608,23 @@ impl<const N: usize, const D: usize> ArrTensor<f32, N, D> {
 
         out.data.fill(0.0);
 
-        // compute strides once
-        let mut self_strides = [0usize; MAX_STATIC_RANK];
-        let mut rhs_strides = [0usize; MAX_STATIC_RANK];
-        let mut out_strides = [0usize; MAX_STATIC_RANK];
-        compute_strides_fixed(&self.shape, &mut self_strides, D);
-        compute_strides_fixed(&rhs.shape, &mut rhs_strides, D);
-        compute_strides_fixed(&out.shape, &mut out_strides, D);
+        let mut self_strides = [0usize; D];
+        let mut rhs_strides = [0usize; D];
+        let mut out_strides = [0usize; D];
+        compute_strides_fixed(&self.shape, &mut self_strides);
+        compute_strides_fixed(&rhs.shape, &mut rhs_strides);
+        compute_strides_fixed(&out.shape, &mut out_strides);
 
         let batch_count = self.shape[..D - 2].iter().product::<usize>();
         if batch_count == 0 {
             return;
         }
 
-        let mut batch_multi_idx = [0usize; MAX_STATIC_RANK];
+        let mut batch_multi_idx = [0usize; D];
 
         for batch_idx in 0..batch_count {
-            // unravel batch index into multi-index
             unravel_index_fixed(batch_idx, &self.shape[..D - 2], &mut batch_multi_idx, D - 2);
 
-            // compute linear batch offsets
             let self_batch_offset: usize = batch_multi_idx[..D - 2]
                 .iter()
                 .zip(&self_strides[..D - 2])
@@ -654,7 +641,6 @@ impl<const N: usize, const D: usize> ArrTensor<f32, N, D> {
                 .map(|(&i, &s)| i * s)
                 .sum();
 
-            // linear inner matmul over last two dimensions
             for i in 0..m {
                 let self_row_offset = self_batch_offset + i * self_strides[D - 2];
                 let out_row_offset = out_batch_offset + i * out_strides[D - 2];
@@ -684,13 +670,13 @@ impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
     /// Same preconditions as generic `matmul`.
     pub fn simd_matmul<const M: usize, const O: usize>(
         &self,
-        rhs: &ArrTensor<f64, M, D>,
-        out: &mut ArrTensor<f64, O, D>,
+        rhs: &ArrTensor<f64, M, { D }>,
+        out: &mut ArrTensor<f64, O, { D }>,
     ) {
         const {
             debug_assert!(
-                D >= 2 && D <= MAX_STATIC_RANK,
-                "rank must be >=2 and <= MAX_STATIC_RANK"
+                D >= 2,
+                "rank must be >=2"
             );
         }
 
@@ -713,26 +699,23 @@ impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
 
         out.data.fill(0.0);
 
-        // compute strides once
-        let mut self_strides = [0usize; MAX_STATIC_RANK];
-        let mut rhs_strides = [0usize; MAX_STATIC_RANK];
-        let mut out_strides = [0usize; MAX_STATIC_RANK];
-        compute_strides_fixed(&self.shape, &mut self_strides, D);
-        compute_strides_fixed(&rhs.shape, &mut rhs_strides, D);
-        compute_strides_fixed(&out.shape, &mut out_strides, D);
+        let mut self_strides = [0usize; D];
+        let mut rhs_strides = [0usize; D];
+        let mut out_strides = [0usize; D];
+        compute_strides_fixed(&self.shape, &mut self_strides);
+        compute_strides_fixed(&rhs.shape, &mut rhs_strides);
+        compute_strides_fixed(&out.shape, &mut out_strides);
 
         let batch_count = self.shape[..D - 2].iter().product::<usize>();
         if batch_count == 0 {
             return;
         }
 
-        let mut batch_multi_idx = [0usize; MAX_STATIC_RANK];
+        let mut batch_multi_idx = [0usize; D];
 
         for batch_idx in 0..batch_count {
-            // unravel batch index into multi-index
             unravel_index_fixed(batch_idx, &self.shape[..D - 2], &mut batch_multi_idx, D - 2);
 
-            // compute linear batch offsets
             let self_batch_offset: usize = batch_multi_idx[..D - 2]
                 .iter()
                 .zip(&self_strides[..D - 2])
@@ -749,7 +732,6 @@ impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
                 .map(|(&i, &s)| i * s)
                 .sum();
 
-            // linear inner matmul over last two dimensions
             for i in 0..m {
                 let self_row_offset = self_batch_offset + i * self_strides[D - 2];
                 let out_row_offset = out_batch_offset + i * out_strides[D - 2];
@@ -767,7 +749,7 @@ impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
     }
 }
 
-impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
+impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, { D }, LANES>
 where
     T: SimdElement + Primitive,
     [T; LANES]: AlignedSimd<[T; LANES], T, { LANES }>,
@@ -779,7 +761,7 @@ where
     ///
     /// # Panics
     ///
-    /// Panics if `D` exceeds `MAX_STATIC_RANK`.
+    /// Panics if `D` exceeds `D`.
     ///
     /// # Example
     ///
@@ -794,7 +776,6 @@ where
     #[must_use]
     pub fn transpose(&self) -> Self {
         let perm = {
-            // Reverse axes for ranks > 2
             let mut rev = [0usize; D];
             let mut i = 0;
             while i < D {
@@ -825,7 +806,6 @@ where
     /// ```
     #[must_use]
     pub fn transpose_axes(&self, perm: [usize; D]) -> Self {
-        // validate perm is a valid permutation of 0..D
         {
             let mut check = [false; D];
             for &p in &perm {
@@ -844,35 +824,27 @@ where
     /// to [`Self::transpose_axes`].
     #[must_use]
     pub fn transpose_axes_unchecked(&self, perm: [usize; D]) -> Self {
-        // compute new shape by permuting old shape
         let mut new_shape = [0usize; D];
         for i in 0..D {
             new_shape[i] = self.shape[perm[i]];
         }
 
-        // compute old strides and new strides
-        let mut old_strides = [0usize; MAX_STATIC_RANK];
-        let mut new_strides = [0usize; MAX_STATIC_RANK];
-        compute_strides_fixed(&self.shape, &mut old_strides, D);
-        compute_strides_fixed(&new_shape, &mut new_strides, D);
+        let mut old_strides = [0usize; D];
+        let mut new_strides = [0usize; D];
+        compute_strides_fixed(&self.shape, &mut old_strides);
+        compute_strides_fixed(&new_shape, &mut new_strides);
 
-        // allocate new data array
         let mut new_data = [self.data[0]; N];
 
-        // for every flat index in new_data, find corresponding index in self.data
         for (new_flat_index, item) in new_data.iter_mut().enumerate().take(N) {
-            // unravel new_flat_index to multi-dim index in permuted axes
-            let mut new_multi_index = [0usize; MAX_STATIC_RANK];
+            let mut new_multi_index = [0usize; D];
             unravel_index_fixed(new_flat_index, &new_shape, &mut new_multi_index, D);
 
-            // invert permutation: find old_multi_index by mapping
-            // old_multi_index[perm[i]] = new_multi_index[i]
             let mut old_multi_index = [0usize; D];
             for i in 0..D {
                 old_multi_index[perm[i]] = new_multi_index[i];
             }
 
-            // flatten old_multi_index to get original flat index
             let old_flat_index = old_multi_index
                 .iter()
                 .zip(old_strides.iter())

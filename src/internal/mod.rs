@@ -204,16 +204,14 @@ mod tests {
 
     #[test]
     fn batched_matmul_simple() {
-        // shape: [2, 2, 3] (2 batches, 2 rows, 3 cols)
         let a_data = [
-            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 2
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0,
             7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
         ];
         let a = ArrTensor::with_data([2, 2, 3], a_data);
 
-        // shape: [2, 3, 2] (2 batches, 3 rows, 2 cols)
         let b_data = [
-            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 2
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0,
             7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
         ];
         let b = ArrTensor::with_data([2, 3, 2], b_data);
@@ -222,12 +220,10 @@ mod tests {
 
         let expected = [22.0, 28.0, 49.0, 64.0, 220.0, 244.0, 301.0, 334.0];
 
-        // first normal matmul
         a.matmul(&b, &mut out);
 
         assert_eq!(out.data(), expected);
 
-        // then simd accelerated
         a.simd_matmul(&b, &mut out);
 
         assert_eq!(out.data(), expected);

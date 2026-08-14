@@ -1,6 +1,6 @@
 [package]
 name = "tensor_optim"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 rust-version = "1.83.0"
 description = "A tiny tensor engine lacking compromise on portability"
@@ -11,10 +11,13 @@ categories = ["science", "mathematics", "data-structures", "embedded", "no-std::
 repository = "https://github.com/bobbothe2nd/tensor_optim"
 readme = "README.md"
 
+[profile.dev]
+incremental = false
+
 [profile.release]
 opt-level = 3
 codegen-units = 1
-incremental = true
+incremental = false
 debug = false
 
 [profile.release.package."*"]
@@ -24,10 +27,11 @@ codegen-units = 1
 [features]
 default = ["no_stack"]
 no_stack = ["alloc"]
-alloc = []
+alloc = ["lazy_simd/alloc"]
+std = ["lazy_simd/std"]
 
 [dependencies]
-lazy_simd = "0.3.0"
+lazy_simd = { version = "0.4.1", default-features = false, features = ["num-traits"] }
 
 [dev-dependencies]
 proptest = "1.7.0"

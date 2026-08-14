@@ -274,6 +274,6 @@ mod tests {
         let mut b_buf = [3, 4, 5];
         let mut a = tensor(&[2], &mut a_buf);
         let b = tensor(&[3], &mut b_buf);
-        a += &b; // should panic
+        a += &b;
     }
 }

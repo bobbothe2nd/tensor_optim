@@ -28,7 +28,7 @@ pub struct ArrTensor<
     LaneCount<LANES>: SupportedLaneCount,
 {
     shape: [usize; D],
-    data: Box<Simd<T, N, LANES>>, // vector instead of array
+    data: Box<Simd<T, N, LANES>>,
 }
 
 impl<T, const N: usize, const D: usize, const LANES: usize> ArrTensor<T, N, D, LANES>
@@ -575,8 +575,9 @@ fn unravel_index_fixed<const D: usize>(
     mut idx: usize,
     shape: &[usize],
     out: &mut [usize; D],
+    rank: usize,
 ) {
-    for i in (0..D - 2).rev() {
+    for i in (0..rank).rev() {
         out[i] = idx % shape[i];
         idx /= shape[i];
     }
@@ -618,8 +619,8 @@ where
     ) {
         const {
             debug_assert!(
-                D >= 2 && D <= D,
-                "rank must be >=2 and <= D"
+                D >= 2,
+                "rank must be >=2"
             );
         }
 
@@ -642,7 +643,6 @@ where
 
         out.data.fill(T::default());
 
-        // compute strides once
         let mut self_strides = [0usize; D];
         let mut rhs_strides = [0usize; D];
         let mut out_strides = [0usize; D];
@@ -658,10 +658,8 @@ where
         let mut batch_multi_idx = [0usize; D];
 
         for batch_idx in 0..batch_count {
-            // unravel batch index into multi-index
-            unravel_index_fixed(batch_idx, &self.shape, &mut batch_multi_idx);
+            unravel_index_fixed(batch_idx, &self.shape, &mut batch_multi_idx, D - 2);
 
-            // compute linear batch offsets
             let self_batch_offset: usize = batch_multi_idx[..D - 2]
                 .iter()
                 .zip(&self_strides[..D - 2])
@@ -678,7 +676,6 @@ where
                 .map(|(&i, &s)| i * s)
                 .sum();
 
-            // linear inner matmul over last two dimensions
             for i in 0..m {
                 let self_row_offset = self_batch_offset + i * self_strides[D - 2];
                 let out_row_offset = out_batch_offset + i * out_strides[D - 2];
@@ -714,8 +711,8 @@ impl<const N: usize, const D: usize> ArrTensor<f32, N, D> {
     ) {
         const {
             debug_assert!(
-                D >= 2 && D <= D,
-                "rank must be >=2 and <= D"
+                D >= 2,
+                "rank must be >=2"
             );
         }
 
@@ -738,7 +735,6 @@ impl<const N: usize, const D: usize> ArrTensor<f32, N, D> {
 
         out.data.fill(0.0);
 
-        // compute strides once
         let mut self_strides = [0usize; D];
         let mut rhs_strides = [0usize; D];
         let mut out_strides = [0usize; D];
@@ -754,10 +750,8 @@ impl<const N: usize, const D: usize> ArrTensor<f32, N, D> {
         let mut batch_multi_idx = [0usize; D];
 
         for batch_idx in 0..batch_count {
-            // unravel batch index into multi-index
-            unravel_index_fixed(batch_idx, &self.shape, &mut batch_multi_idx);
+            unravel_index_fixed(batch_idx, &self.shape, &mut batch_multi_idx, D - 2);
 
-            // compute linear batch offsets
             let self_batch_offset: usize = batch_multi_idx[..D - 2]
                 .iter()
                 .zip(&self_strides[..D - 2])
@@ -774,7 +768,6 @@ impl<const N: usize, const D: usize> ArrTensor<f32, N, D> {
                 .map(|(&i, &s)| i * s)
                 .sum();
 
-            // linear inner matmul over last two dimensions
             for i in 0..m {
                 let self_row_offset = self_batch_offset + i * self_strides[D - 2];
                 let out_row_offset = out_batch_offset + i * out_strides[D - 2];
@@ -809,8 +802,8 @@ impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
     ) {
         const {
             debug_assert!(
-                D >= 2 && D <= D,
-                "rank must be >=2 and <= D"
+                D >= 2,
+                "rank must be >=2"
             );
         }
 
@@ -833,7 +826,6 @@ impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
 
         out.data.fill(0.0);
 
-        // compute strides once
         let mut self_strides = [0usize; D];
         let mut rhs_strides = [0usize; D];
         let mut out_strides = [0usize; D];
@@ -849,10 +841,8 @@ impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
         let mut batch_multi_idx = [0usize; D];
 
         for batch_idx in 0..batch_count {
-            // unravel batch index into multi-index
-            unravel_index_fixed(batch_idx, &self.shape, &mut batch_multi_idx);
+            unravel_index_fixed(batch_idx, &self.shape, &mut batch_multi_idx, D - 2);
 
-            // compute linear batch offsets
             let self_batch_offset: usize = batch_multi_idx[..D - 2]
                 .iter()
                 .zip(&self_strides[..D - 2])
@@ -869,7 +859,6 @@ impl<const N: usize, const D: usize> ArrTensor<f64, N, D> {
                 .map(|(&i, &s)| i * s)
                 .sum();
 
-            // linear inner matmul over last two dimensions
             for i in 0..m {
                 let self_row_offset = self_batch_offset + i * self_strides[D - 2];
                 let out_row_offset = out_batch_offset + i * out_strides[D - 2];
@@ -914,7 +903,6 @@ where
     #[must_use]
     pub fn transpose(&self) -> Self {
         let perm = {
-            // rWeverse axes for ranks > 2
             let mut rev = [0usize; D];
             let mut i = 0;
             while i < D {
@@ -945,7 +933,6 @@ where
     /// ```
     #[must_use]
     pub fn transpose_axes(&self, perm: [usize; D]) -> Self {
-        // validate perm is a valid permutation of 0..D
         {
             let mut check = [false; D];
             for &p in &perm {
@@ -964,35 +951,27 @@ where
     /// to [`Self::transpose_axes`].
     #[must_use]
     pub fn transpose_axes_unchecked(&self, perm: [usize; D]) -> Self {
-        // compute new shape by permuting old shape
         let mut new_shape = [0usize; D];
         for i in 0..D {
             new_shape[i] = self.shape[perm[i]];
         }
 
-        // compute old strides and new strides
         let mut old_strides = [0usize; D];
         let mut new_strides = [0usize; D];
         compute_strides_fixed(&self.shape, &mut old_strides);
         compute_strides_fixed(&new_shape, &mut new_strides);
 
-        // allocate new data array
         let mut new_data = Box::<Simd<T, N, LANES>>::new_uninit();
 
-        // for every flat index in new_data, find corresponding index in self.data
         for new_flat_index in 0..N {
-            // unravel new_flat_index to multi-dim index in permuted axes
             let mut new_multi_index = [0usize; D];
-            unravel_index_fixed(new_flat_index, &new_shape, &mut new_multi_index);
+            unravel_index_fixed(new_flat_index, &new_shape, &mut new_multi_index, D);
 
-            // invert permutation: find old_multi_index by mapping
-            // old_multi_index[perm[i]] = new_multi_index[i]
             let mut old_multi_index = [0usize; D];
             for i in 0..D {
                 old_multi_index[perm[i]] = new_multi_index[i];
             }
 
-            // flatten old_multi_index to get original flat index
             let old_flat_index = old_multi_index
                 .iter()
                 .zip(old_strides.iter())

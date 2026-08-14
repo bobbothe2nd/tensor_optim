@@ -140,7 +140,6 @@ where
             "permutation length must equal tensor rank"
         );
 
-        // validate perm is a permutation of [0..rank)
         {
             let mut seen = vec![false; rank];
             for &p in perm {
@@ -150,23 +149,19 @@ where
             }
         }
 
-        // compute new shape by permuting old shape
         let new_shape: Vec<usize> = perm.iter().map(|&i| self.shape[i]).collect();
 
-        // compute strides for old and new shape using your existing functions
         let old_strides = compute_strides(&self.shape);
 
         let n = self.data.len();
         let mut new_data = Vec::with_capacity(n);
 
-        // temporary buffers for multi-indices
         let mut new_multi_idx = vec![0; rank];
         let mut old_multi_idx = vec![0; rank];
 
         for new_flat_idx in 0..n {
             unravel_index(new_flat_idx, &new_shape, &mut new_multi_idx);
 
-            // inverse permutation: old_multi_idx[perm[i]] = new_multi_idx[i]
             for i in 0..rank {
                 old_multi_idx[perm[i]] = new_multi_idx[i];
             }
@@ -177,7 +172,6 @@ where
                 .map(|(&idx, &stride)| idx * stride)
                 .sum::<usize>();
 
-            // clone data element from old tensor
             new_data.push(self.data[old_flat_idx]);
         }
 
@@ -512,14 +506,12 @@ where
 
         let batch_count = batch_shape.iter().product::<usize>();
 
-        // compute strides
         let self_strides = compute_strides(&self.shape);
         let rhs_strides = compute_strides(&rhs.shape);
         let out_strides = compute_strides(&out.shape);
 
         let out_data = &mut out.data[..];
 
-        // zero output
         for v in out_data.iter_mut() {
             *v = T::default();
         }
@@ -528,13 +520,11 @@ where
             return;
         }
 
-        // preallocate batch index buffer once
         let mut batch_multi_idx = vec![0; batch_shape.len()];
 
         for batch_idx in 0..batch_count {
             unravel_index(batch_idx, batch_shape, &mut batch_multi_idx);
 
-            // compute linear batch offsets for self, rhs, and out
             let self_batch_offset: usize = batch_multi_idx
                 .iter()
                 .zip(&self_strides[..batch_shape.len()])
@@ -553,7 +543,6 @@ where
                 .map(|(&i, &s)| i * s)
                 .sum();
 
-            // inner 2D matmul per batch
             for i in 0..m {
                 let self_row_offset = self_batch_offset + i * self_strides[self_rank - 2];
                 let out_row_offset = out_batch_offset + i * out_strides[out.shape.len() - 2];
@@ -600,7 +589,6 @@ impl DynTensor<f32> {
 
         let batch_count = batch_shape.iter().product::<usize>();
 
-        // compute strides
         let self_strides = compute_strides(&self.shape);
         let rhs_strides = compute_strides(&rhs.shape);
         let out_strides = compute_strides(&out.shape);
@@ -611,13 +599,11 @@ impl DynTensor<f32> {
             return;
         }
 
-        // preallocate batch index buffer once
         let mut batch_multi_idx = vec![0; batch_shape.len()];
 
         for batch_idx in 0..batch_count {
             unravel_index(batch_idx, batch_shape, &mut batch_multi_idx);
 
-            // compute linear batch offsets for self, rhs, and out
             let self_batch_offset: usize = batch_multi_idx
                 .iter()
                 .zip(&self_strides[..batch_shape.len()])
@@ -636,7 +622,6 @@ impl DynTensor<f32> {
                 .map(|(&i, &s)| i * s)
                 .sum();
 
-            // inner 2D matmul per batch
             for i in 0..m {
                 let self_row_offset = self_batch_offset + i * self_strides[self_rank - 2];
                 let out_row_offset = out_batch_offset + i * out_strides[self_rank - 2];
@@ -682,7 +667,6 @@ impl DynTensor<f64> {
 
         let batch_count = batch_shape.iter().product::<usize>();
 
-        // compute strides
         let self_strides = compute_strides(&self.shape);
         let rhs_strides = compute_strides(&rhs.shape);
         let out_strides = compute_strides(&out.shape);
@@ -693,13 +677,11 @@ impl DynTensor<f64> {
             return;
         }
 
-        // preallocate batch index buffer once
         let mut batch_multi_idx = vec![0; batch_shape.len()];
 
         for batch_idx in 0..batch_count {
             unravel_index(batch_idx, batch_shape, &mut batch_multi_idx);
 
-            // compute linear batch offsets for self, rhs, and out
             let self_batch_offset: usize = batch_multi_idx
                 .iter()
                 .zip(&self_strides[..batch_shape.len()])
@@ -718,7 +700,6 @@ impl DynTensor<f64> {
                 .map(|(&i, &s)| i * s)
                 .sum();
 
-            // inner 2D matmul per batch
             for i in 0..m {
                 let self_row_offset = self_batch_offset + i * self_strides[self_rank - 2];
                 let out_row_offset = out_batch_offset + i * out_strides[self_rank - 2];
@@ -901,13 +882,11 @@ mod tests {
 
     #[test]
     fn batched_matmul_simple() {
-        // Shape: [2, 2, 3] (2 batches, 2 rows, 3 cols)
         let a_data = [
             1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
         ];
         let a: DynTensor<f64> = DynTensor::with_data(&[2, 2, 3], &a_data);
 
-        // Shape: [2, 3, 2] (2 batches, 3 rows, 2 cols)
         let b_data = [
             1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
         ];
